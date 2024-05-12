@@ -24,4 +24,11 @@ generateKeyStore() {
 	echo "changeit\nyes\n" | keytool -importcert  -file $filename.cert -alias $service -keystore client-ts.jks
 }
 
-generateKeyStore "users" "123users"
+generateKeyStore "users0-0" "users0pwd"
+generateKeyStore "shorts0-0" "shorts0-0pwd"
+generateKeyStore "shorts1-0" "shorts1-0pwd"
+generateKeyStore "shorts2-0" "shorts2-0pwd"
+generateKeyStore "blobs0-0" "blobs0-0pwd"
+generateKeyStore "blobs1-0" "blobs1-0pwd"
+generateKeyStore "blobs2-0" "blobs2-0pwd"
+generateKeyStore "blobs3-0" "blobs3-0pwd"

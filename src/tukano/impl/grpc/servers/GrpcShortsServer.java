@@ -11,7 +11,7 @@ public static final int PORT = 14567;
 	
 	private static Logger Log = Logger.getLogger(GrpcShortsServer.class.getName());
 
-	public GrpcShortsServer() {
+	public GrpcShortsServer() throws Exception {
 		super( Log, Shorts.NAME, PORT, new GrpcShortsServerStub());
 	}
 	
@@ -19,7 +19,7 @@ public static final int PORT = 14567;
 		try {
 			Args.use(args);
 			new GrpcShortsServer().start();
-		} catch (IOException e) {
+		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}	

@@ -22,7 +22,7 @@ public abstract class AbstractServer {
 		Token.set( Args.valueOf("-token", ""));
 	}
 		
-	abstract protected void start() throws IOException;
+	abstract protected void start() throws Exception;
 	
 	static {
 		System.setProperty("java.net.preferIPv4Stack", "true");

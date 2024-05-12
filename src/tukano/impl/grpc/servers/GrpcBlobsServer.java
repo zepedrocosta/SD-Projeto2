@@ -11,7 +11,7 @@ public static final int PORT = 15678;
 	
 	private static Logger Log = Logger.getLogger(GrpcBlobsServer.class.getName());
 
-	public GrpcBlobsServer(int port) {
+	public GrpcBlobsServer(int port) throws Exception {
 		super( Log, Blobs.NAME, port, new GrpcBlobsServerStub());
 	}
 	
@@ -19,7 +19,7 @@ public static final int PORT = 15678;
 		try {
 			Args.use(args);
 			new GrpcBlobsServer(Args.valueOf("-port", PORT)).start();
-		} catch (IOException e) {
+		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}	
