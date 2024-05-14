@@ -16,15 +16,15 @@ generateKeyStore() {
 
 	echo "Generationg Public Key Pair: " $service " pass: " $pass 
 	
-	echo "$pass\n$pass\n$service\nTP2\nSD2324\nLX\nLX\nPT\nyes\n$pass\n$pass" | keytool -ext SAN=dns:$service -genkey -alias $service -keyalg RSA -validity 365 -keystore $filename.jks -storetype pkcs12
+  printf "%s\n" "$pass" "$pass" "$service" "TP2" "SD2324" "LX" "LX" "PT" "yes" "$pass" "$pass" | keytool -ext SAN=dns:$service -genkey -alias $service -keyalg RSA -validity 365 -keystore $filename.jks -storetype pkcs12
 
 	echo "Exporting certificate"
-	echo "$pass\n" | keytool -exportcert -ext SAN=dns:$service -alias $service -keystore $filename.jks -file $filename.cert
+	printf "%s\n" "$pass" "$pass" | keytool -exportcert -ext SAN=dns:$service -alias $service -keystore $filename.jks -file $filename.cert
 	
-	echo "changeit\nyes\n" | keytool -importcert  -file $filename.cert -alias $service -keystore client-ts.jks
+	printf "%s\n" "changeit" "yes" | keytool -importcert -file $filename.cert -alias $service -keystore cacerts
 }
 
-generateKeyStore "users0-0" "users0pwd"
+generateKeyStore "users0-0" "users0-0pwd"
 generateKeyStore "shorts0-0" "shorts0-0pwd"
 generateKeyStore "shorts1-0" "shorts1-0pwd"
 generateKeyStore "shorts2-0" "shorts2-0pwd"
