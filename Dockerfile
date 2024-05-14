@@ -1,4 +1,4 @@
-FROM smduarte/sd2324testerbase
+FROM nunopreguica/sd2324testerbase
 
 # working directory inside docker image
 WORKDIR /home/sd
