@@ -14,7 +14,7 @@ import javax.net.ssl.SSLContext;
 
 
 public abstract class AbstractRestServer extends AbstractServer {
-	private static final String SERVER_BASE_URI = "http://%s:%s%s";
+	private static final String SERVER_BASE_URI = "https://%s:%s%s";
 	private static final String REST_CTX = "/rest";
 
 	protected AbstractRestServer(Logger log, String service, int port) {

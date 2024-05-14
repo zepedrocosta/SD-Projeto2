@@ -29,4 +29,4 @@ USERS_KEYSTORES= users-ourorg0,users0-0.jks,users0-0pwd
 SHORTS_KEYSTORES= shorts-ourorg0,shorts0-0.jks,shorts0-0pwd shorts-ourorg1,shorts1-0.jks,shorts1-0pwd shorts-ourorg2,shorts2-0.jks,shorts2-0pwd
 BLOBS_KEYSTORES= blobs-ourorg0,blobs0-0.jks,blobs0-0pwd blobs-ourorg1,blobs1-0.jks,blobs1-0pwd blobs-ourorg2,blobs2-0.jks,blobs2-0pwd blobs-ourorg3,blobs3-0.jks,blobs3-0pwd
 CLIENT_TRUSTSTORE= client-ts.jks
-CLIENT_TRUSTSTORE_PWD= users0pwd
+CLIENT_TRUSTSTORE_PWD= changeit
