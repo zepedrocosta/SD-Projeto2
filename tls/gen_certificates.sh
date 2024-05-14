@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 
-echo "Generating TLS credentials " 
+echo "Generating TLS credentials "
 
 rm -f *.jks *.cert
 
 cp cacerts client-ts.jks
-
 
 generateKeyStore() {
 	echo ">>>" $*
@@ -14,14 +13,14 @@ generateKeyStore() {
 	filename=$1
 	rm -f $filename.jks
 
-	echo "Generationg Public Key Pair: " $service " pass: " $pass 
-	
-  printf "%s\n" "$pass" "$pass" "$service" "TP2" "SD2324" "LX" "LX" "PT" "yes" "$pass" "$pass" | keytool -ext SAN=dns:$service -genkey -alias $service -keyalg RSA -validity 365 -keystore $filename.jks -storetype pkcs12
+	echo "Generationg Public Key Pair: " $service " pass: " $pass
+
+	printf "$pass\n$pass\n$service\nTP2\nSD2324\nLX\nLX\nPT\nyes\n$pass\n$pass" | keytool -ext SAN=dns:$service -genkey -alias $service -keyalg RSA -validity 365 -keystore $filename.jks -storetype pkcs12
 
 	echo "Exporting certificate"
-	printf "%s\n" "$pass" "$pass" | keytool -exportcert -ext SAN=dns:$service -alias $service -keystore $filename.jks -file $filename.cert
-	
-	printf "%s\n" "changeit" "yes" | keytool -importcert -file $filename.cert -alias $service -keystore cacerts
+	printf "$pass\n" | keytool -exportcert -ext SAN=dns:$service -alias $service -keystore $filename.jks -file $filename.cert
+
+	printf "changeit\nyes\n" | keytool -importcert -file $filename.cert -alias $service -keystore client-ts.jks
 }
 
 generateKeyStore "users0-0" "users0-0pwd"

@@ -80,6 +80,9 @@ public class JavaBlobs implements ExtendedBlobs {
 		if (file == null)
 			return error(BAD_REQUEST);
 
+		if( ! file.exists() )
+			return error(NOT_FOUND);
+
 		try (var fis = new FileInputStream(file)) {
 			int n;
 			var chunk = new byte[CHUNK_SIZE];

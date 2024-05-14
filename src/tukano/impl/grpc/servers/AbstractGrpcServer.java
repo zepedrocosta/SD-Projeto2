@@ -25,7 +25,7 @@ public class AbstractGrpcServer extends AbstractServer {
 	AbstractGrpcStub stub;
 
 	protected AbstractGrpcServer(Logger log, String service, int port, AbstractGrpcStub stub) throws Exception {
-		super(log, service, String.format(SERVER_BASE_URI, IP.hostname(), port, GRPC_CTX));
+		super(log, service, String.format(SERVER_BASE_URI, IP.hostAddress(), port, GRPC_CTX));
 		//this.server = ServerBuilder.forPort(port).addService(stub).build();
 		this.service = service;
 		this.port = port;
