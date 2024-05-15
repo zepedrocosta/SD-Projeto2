@@ -13,7 +13,7 @@ generateKeyStore() {
 	filename=$1
 	rm -f $filename.jks
 
-	echo "Generationg Public Key Pair: " $service " pass: " $pass
+	printf "Generationg Public Key Pair: " $service " pass: " $pass
 
 	printf "$pass\n$pass\n$service\nTP2\nSD2324\nLX\nLX\nPT\nyes\n$pass\n$pass" | keytool -ext SAN=dns:$service -genkey -alias $service -keyalg RSA -validity 365 -keystore $filename.jks -storetype pkcs12
 
@@ -23,11 +23,11 @@ generateKeyStore() {
 	printf "changeit\nyes\n" | keytool -importcert -file $filename.cert -alias $service -keystore client-ts.jks
 }
 
-generateKeyStore "users0-0" "users0-0pwd"
-generateKeyStore "shorts0-0" "shorts0-0pwd"
-generateKeyStore "shorts1-0" "shorts1-0pwd"
-generateKeyStore "shorts2-0" "shorts2-0pwd"
-generateKeyStore "blobs0-0" "blobs0-0pwd"
-generateKeyStore "blobs1-0" "blobs1-0pwd"
-generateKeyStore "blobs2-0" "blobs2-0pwd"
-generateKeyStore "blobs3-0" "blobs3-0pwd"
+generateKeyStore "users0-ourorg" "users0-0pwd"
+generateKeyStore "shorts0-ourorg" "shorts0-0pwd"
+generateKeyStore "shorts1-ourorg" "shorts1-0pwd"
+generateKeyStore "shorts2-ourorg" "shorts2-0pwd"
+generateKeyStore "blobs0-ourorg" "blobs0-0pwd"
+generateKeyStore "blobs1-ourorg" "blobs1-0pwd"
+generateKeyStore "blobs2-ourorg" "blobs2-0pwd"
+generateKeyStore "blobs3-ourorg" "blobs3-0pwd"
