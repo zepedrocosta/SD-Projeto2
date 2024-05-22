@@ -41,7 +41,7 @@ services=(
 )
 
 # Password for keystore
-password="123456"
+password="tlsPassword"
 
 # Generate certificates for all services
 for service in "${services[@]}"; do
