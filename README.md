@@ -21,6 +21,8 @@ mvn clean compile assembly:single docker:build
 ## TESTS
 
 * 101a - **OK**
+* 101b - **OK**
 * 102a - **OK**
 * 102b - **OK**
-* 102c
+* 102c -
+* 102d -
