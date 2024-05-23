@@ -15,7 +15,7 @@ mvn clean compile assembly:single docker:build
 ```
 
 ```cmd
--image sd2324-tp2-62637-63184
+-image sd2324-tp2-api-62637-63184
 ```
 
 ## TESTS
@@ -24,5 +24,21 @@ mvn clean compile assembly:single docker:build
 * 101b - **OK**
 * 102a - **OK**
 * 102b - **OK**
-* 102c -
-* 102d -
+* 102c - **OK**
+* 102d - **OK**
+* 102e - **OK**
+* 102f - **OK**
+* 103a - **OK**
+* 103b - **OK**
+* 103c - **OK**
+* 103d - **OK**
+* 103e - **OK**
+* 104a - **OK**
+* 104b - **OK**
+* 104c - **OK**
+* 105a -
+* 105b -
+* 105c -
+* 105d -
+* 106a - **OK**
+* 107a -
