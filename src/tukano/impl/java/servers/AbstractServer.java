@@ -1,6 +1,10 @@
 package tukano.impl.java.servers;
 
 import java.io.IOException;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateException;
 import java.util.logging.Logger;
 
 import utils.Args;
@@ -22,7 +26,7 @@ public abstract class AbstractServer {
 		Token.set( Args.valueOf("-token", ""));
 	}
 		
-	abstract protected void start() throws Exception;
+	abstract protected void start() throws IOException, NoSuchAlgorithmException, KeyStoreException, CertificateException, UnrecoverableKeyException;
 	
 	static {
 		System.setProperty("java.net.preferIPv4Stack", "true");

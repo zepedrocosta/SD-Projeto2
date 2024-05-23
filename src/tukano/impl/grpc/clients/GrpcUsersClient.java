@@ -22,7 +22,7 @@ public class GrpcUsersClient extends GrpcClient implements Users {
 
 	public GrpcUsersClient(String serverURI) {
 		super(serverURI);
-		this.stub = UsersGrpc.newBlockingStub( super.channel );	
+		this.stub = UsersGrpc.newBlockingStub( super.channel );
 	}
 
 	public Result<String> createUser(User user) {

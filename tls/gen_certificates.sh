@@ -23,11 +23,11 @@ generateKeyStore() {
 	printf "changeit\nyes\n" | keytool -importcert -file $filename.cert -alias $service -keystore client-ts.jks
 }
 
-generateKeyStore "users0-ourorg" "tlsPassword"
-generateKeyStore "shorts0-ourorg" "tlsPassword"
-generateKeyStore "shorts1-ourorg" "tlsPassword"
-generateKeyStore "shorts2-ourorg" "tlsPassword"
-generateKeyStore "blobs0-ourorg" "tlsPassword"
-generateKeyStore "blobs1-ourorg" "tlsPassword"
-generateKeyStore "blobs2-ourorg" "tlsPassword"
-generateKeyStore "blobs3-ourorg" "tlsPassword"
+generateKeyStore "users0-ourorg" "users0-0pwd"
+generateKeyStore "shorts0-ourorg" "shorts0-0pwd"
+generateKeyStore "shorts1-ourorg" "shorts1-0pwd"
+generateKeyStore "shorts2-ourorg" "shorts2-0pwd"
+generateKeyStore "blobs0-ourorg" "blobs0-0pwd"
+generateKeyStore "blobs1-ourorg" "blobs1-0pwd"
+generateKeyStore "blobs2-ourorg" "blobs2-0pwd"
+generateKeyStore "blobs3-ourorg" "blobs3-0pwd"

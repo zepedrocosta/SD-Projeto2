@@ -1,6 +1,10 @@
 package tukano.impl.grpc.servers;
 
 import java.io.IOException;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateException;
 import java.util.logging.Logger;
 
 import tukano.api.java.Shorts;
@@ -11,7 +15,7 @@ public static final int PORT = 14567;
 	
 	private static Logger Log = Logger.getLogger(GrpcShortsServer.class.getName());
 
-	public GrpcShortsServer() throws Exception {
+	public GrpcShortsServer() {
 		super( Log, Shorts.NAME, PORT, new GrpcShortsServerStub());
 	}
 	
@@ -19,7 +23,8 @@ public static final int PORT = 14567;
 		try {
 			Args.use(args);
 			new GrpcShortsServer().start();
-		} catch (Exception e) {
+		} catch (IOException | KeyStoreException | CertificateException | NoSuchAlgorithmException |
+				 UnrecoverableKeyException e) {
 			e.printStackTrace();
 		}
 	}	

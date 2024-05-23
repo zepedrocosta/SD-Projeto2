@@ -47,8 +47,10 @@ public class GrpcBlobsServerStub extends AbstractGrpcStub implements BlobsGrpc.A
 	@Override
 	public void delete(DeleteArgs request, StreamObserver<DeleteResult> responseObserver) {
 		var res = impl.delete(request.getBlobId(), request.getToken());
-		if (res.isOK())
+		if (res.isOK()) {
+			responseObserver.onNext(DeleteResult.newBuilder().build());
 			responseObserver.onCompleted();
+		}
 		else
 			responseObserver.onError(errorCodeToStatus(res.error()));
 
@@ -57,8 +59,10 @@ public class GrpcBlobsServerStub extends AbstractGrpcStub implements BlobsGrpc.A
 	@Override
 	public void deleteAllBlobs(DeleteAllBlobsArgs request, StreamObserver<DeleteAllBlobsResult> responseObserver) {
 		var res = impl.deleteAllBlobs(request.getUserId(), request.getToken());
-		if (res.isOK())
+		if (res.isOK()) {
+			responseObserver.onNext(DeleteAllBlobsResult.newBuilder().build());
 			responseObserver.onCompleted();
+		}
 		else
 			responseObserver.onError(errorCodeToStatus(res.error()));
 
