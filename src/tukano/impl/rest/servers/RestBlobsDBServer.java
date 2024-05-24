@@ -10,23 +10,22 @@ import tukano.impl.rest.servers.utils.CustomLoggingFilter;
 import tukano.impl.rest.servers.utils.GenericExceptionMapper;
 import utils.Args;
 
-public class RestBlobsDBServer extends AbstractRestServer{
-    public static final int PORT = 6789;
-	
+public class RestBlobsDBServer extends AbstractRestServer {
+	public static final int PORT = 6789;
+
 	private static Logger Log = Logger.getLogger(RestBlobsDBServer.class.getName());
 
 	RestBlobsDBServer(int port) {
-		super( Log, Blobs.NAME, port);
+		super(Log, Blobs.NAME, port);
 	}
-	
-	
+
 	@Override
 	void registerResources(ResourceConfig config) {
-		config.register( RestBlobsDBResource.class ); 
+		config.register(RestBlobsDBResource.class);
 		config.register(new GenericExceptionMapper());
 		config.register(new CustomLoggingFilter());
 	}
-	
+
 	public static void main(String[] args) throws NoSuchAlgorithmException {
 		Args.use(args);
 		new RestBlobsDBServer(Args.valueOf("-port", PORT)).start();
