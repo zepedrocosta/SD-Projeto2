@@ -35,6 +35,7 @@ import tukano.impl.java.servers.data.Following;
 import tukano.impl.java.servers.data.Likes;
 import utils.DB;
 import utils.Token;
+import utils.kafka.KafkaPublisher;
 
 public class JavaShorts implements ExtendedShorts {
 	private static final String BLOB_COUNT = "*";
@@ -42,11 +43,20 @@ public class JavaShorts implements ExtendedShorts {
 	private static Logger Log = Logger.getLogger(JavaShorts.class.getName());
 
 	AtomicLong counter = new AtomicLong( totalShortsInDatabase() );
+
+	private final KafkaPublisher publisher;
 	
 	private static final long USER_CACHE_EXPIRATION = 3000;
 	private static final long SHORTS_CACHE_EXPIRATION = 3000;
 	private static final long BLOBS_USAGE_CACHE_EXPIRATION = 10000;
 
+	public JavaShorts() {
+		this(null);
+	}
+
+	public JavaShorts(KafkaPublisher publisher) {
+		this.publisher = publisher;
+	}
 
 	static record Credentials(String userId, String pwd) {
 		static Credentials from(String userId, String pwd) {
@@ -106,7 +116,11 @@ public class JavaShorts implements ExtendedShorts {
 			var blobUrl = format("%s/%s/%s", getLeastLoadedBlobServerURI(), Blobs.NAME, shortId); 
 			var shrt = new Short(shortId, userId, blobUrl);
 
-			return DB.insertOne(shrt);
+			var operation = DB.insertOne(shrt);
+			if (operation.error() == null)
+				publish("create " + shortId);
+
+			return operation;
 		});
 	}
 
@@ -137,6 +151,8 @@ public class JavaShorts implements ExtendedShorts {
 					hibernate.createNativeQuery( query, Likes.class).list().forEach( hibernate::remove);
 					
 					BlobsClients.get().delete(shrt.getBlobUrl(), Token.get() );
+
+					publish("delete " + shortId);
 				});
 			});	
 		});
@@ -157,7 +173,12 @@ public class JavaShorts implements ExtendedShorts {
 		
 		return errorOrResult( okUser(userId1, password), user -> {
 			var f = new Following(userId1, userId2);
-			return errorOrVoid( okUser( userId2), isFollowing ? DB.insertOne( f ) : DB.deleteOne( f ));	
+
+			var operation = errorOrVoid( okUser( userId2), isFollowing ? DB.insertOne( f ) : DB.deleteOne( f ));
+			if( operation.error() == null )
+				publish("follow " + userId1 + " " + userId2);
+
+			return operation;
 		});			
 	}
 
@@ -178,7 +199,12 @@ public class JavaShorts implements ExtendedShorts {
 			shortsCache.invalidate( shortId );
 			
 			var l = new Likes(userId, shortId, shrt.getOwnerId());
-			return errorOrVoid( okUser( userId, password), isLiked ? DB.insertOne( l ) : DB.deleteOne( l ));	
+
+			var operation = errorOrVoid( okUser( userId, password), isLiked ? DB.insertOne( l ) : DB.deleteOne( l ));
+			if( operation.error() == null )
+				publish("like " + shortId + " " + userId);
+
+			return 	operation;
 		});
 	}
 
@@ -189,7 +215,7 @@ public class JavaShorts implements ExtendedShorts {
 		return errorOrResult( getShort(shortId), shrt -> {
 			
 			var query = format("SELECT l.userId FROM Likes l WHERE l.shortId = '%s'", shortId);					
-			
+
 			return errorOrValue( okUser( shrt.getOwnerId(), password ), DB.sql(query, String.class));
 		});
 	}
@@ -243,7 +269,7 @@ public class JavaShorts implements ExtendedShorts {
 
 		if( ! Token.matches( token ) )
 			return error(FORBIDDEN);
-		
+
 		return DB.transaction( (hibernate) -> {
 			
 			usersCache.invalidate( new Credentials(userId, password) );
@@ -265,10 +291,17 @@ public class JavaShorts implements ExtendedShorts {
 				shortsCache.invalidate( l.getShortId() );
 				hibernate.remove(l);
 			});
+
+			publish("deleteAllShorts " + userId);
 		});
+
+
 	}
 
-
+	private void publish(String value) {
+		if (publisher != null)
+			publisher.publish("shorts", value);
+	}
 	
 	private String getLeastLoadedBlobServerURI() {
 		try {

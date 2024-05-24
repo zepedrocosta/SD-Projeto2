@@ -7,13 +7,15 @@ import tukano.api.Short;
 import tukano.impl.api.java.ExtendedShorts;
 import tukano.impl.api.rest.RestExtendedShorts;
 import tukano.impl.java.servers.JavaShorts;
+import utils.kafka.KafkaPublisher;
 
 @Singleton
 public class RestShortsResource extends RestResource implements RestExtendedShorts {
 
 	final ExtendedShorts impl;
+
 	public RestShortsResource() {
-		this.impl = new JavaShorts();
+		this.impl = new JavaShorts(KafkaPublisher.createPublisher("kafka:9092"));
 	}
 	
 	
