@@ -9,6 +9,8 @@ import tukano.api.java.Blobs;
 import tukano.impl.rest.servers.utils.CustomLoggingFilter;
 import tukano.impl.rest.servers.utils.GenericExceptionMapper;
 import utils.Args;
+import utils.IO;
+import utils.IODropbox;
 
 public class RestBlobsDBServer extends AbstractRestServer {
 	public static final int PORT = 6789;
@@ -28,6 +30,12 @@ public class RestBlobsDBServer extends AbstractRestServer {
 
 	public static void main(String[] args) throws NoSuchAlgorithmException {
 		Args.use(args);
+		try {
+			IODropbox dropbox = new IODropbox();
+			dropbox.cleanDropbox();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 		new RestBlobsDBServer(Args.valueOf("-port", PORT)).start();
 	}
 }

@@ -10,16 +10,14 @@ import static tukano.api.java.Result.ErrorCode.INTERNAL_ERROR;
 import static tukano.api.java.Result.ErrorCode.NOT_FOUND;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
-
-import org.hibernate.mapping.List;
 
 import tukano.api.java.Result;
 import tukano.impl.api.java.ExtendedBlobs;
@@ -29,6 +27,7 @@ import utils.Hex;
 import utils.IODropbox;
 import utils.IP;
 import utils.Token;
+
 
 public class JavaBlobsDB implements ExtendedBlobs {
 	private static final String BLOBS_ROOT_DIR = "/tukano/" + IP.hostName() + "/";
@@ -61,7 +60,6 @@ public class JavaBlobsDB implements ExtendedBlobs {
 					return error(CONFLICT);
 			}
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 
@@ -80,12 +78,12 @@ public class JavaBlobsDB implements ExtendedBlobs {
 
 		IODropbox dropbox = new IODropbox();
 		try {
-			if (dropbox.listDirectory(blobFolder(filePath)).contains(filePath))
-				return ok(dropbox.read(filePath));
-			else
+			if (hasBlob(filePath, dropbox)) {
+				byte[] file = IODropbox.read(filePath);	
+				return ok(file);
+			} else
 				return error(NOT_FOUND);
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		return null;
@@ -105,7 +103,6 @@ public class JavaBlobsDB implements ExtendedBlobs {
 			if (dropbox.listDirectory(blobFolder(filePath)).contains(filePath))
 				return error(NOT_FOUND);
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 
@@ -139,7 +136,6 @@ public class JavaBlobsDB implements ExtendedBlobs {
 			if (dropbox.listDirectory(blobFolder(filePath)).contains(filePath))
 				return error(NOT_FOUND);
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 
@@ -186,5 +182,17 @@ public class JavaBlobsDB implements ExtendedBlobs {
 		}
 
 		return url.substring(0, lastSlashIndex);
+	}
+
+	private boolean hasBlob(String filePath, IODropbox dropbox) throws Exception {
+		Log.info(blobFolder(filePath));
+		Log.info(filePath);
+		List<String> files = dropbox.listDirectory(blobFolder(filePath));
+		for (String file : files) {
+			String path = blobFolder(filePath) + "/" + file;
+			if (path.equals(filePath))
+				return true;
+		}
+		return false;
 	}
 }

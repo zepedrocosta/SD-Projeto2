@@ -19,7 +19,7 @@ public class IODropbox {
 
     private static final String apiKey = "e1cnnhudp3nwwu5";
     private static final String apiSecret = "mji6dkyofw78cgm";
-    private static final String accessTokenStr = "sl.B11YXzhYI2ABv55IktGPpPXc6_C6qgXLkq9AmCJ1Y8i9fOiK5C0ylWKRgZxBITUy18BpYKnNfksOwIMZQo6wp3pX3jyB-B91UiU5XjtKHEl_vJVAsoqOBegWarEoxKdwjlvdAhlRRPwD";
+    private static final String accessTokenStr = "sl.B10TFbLgkH66xmPJvrDN2ZT40MPxhlTV8u8D8rcQVb8xXVUBXFHd5IBYB2MdoHDNziMy9u8iZFCz3QqR0wJgmIdtvsGnWKcz_354gbfehcjnbo8D9ElPn6RfbGlN_wbZ1c7tNUDYkKOg";
 
     private static final String API = "Dropbox-API-Arg";
     private static final String UPLOAD_URL = "https://content.dropboxapi.com/2/files/upload";
@@ -31,7 +31,8 @@ public class IODropbox {
 
     private static final int HTTP_SUCCESS = 200;
     private static final String CONTENT_TYPE_HDR = "Content-Type";
-    private static final String JSON_CONTENT_TYPE = "application/json; charset=utf-8";
+    private static final String JSON_CONTENT_TYPE_CHARSET = "application/json; charset=utf-8";
+    private static final String JSON_CONTENT_TYPE_OCTET = "application/octet-stream";
 
     private static Gson json = null;
     private static OAuth20Service service = null;
@@ -46,7 +47,7 @@ public class IODropbox {
     public void write(String filePath, byte[] bytes) {
         try {
             var writeFile = new OAuthRequest(Verb.POST, UPLOAD_URL);
-            writeFile.addHeader(CONTENT_TYPE_HDR, JSON_CONTENT_TYPE);
+            writeFile.addHeader(CONTENT_TYPE_HDR, JSON_CONTENT_TYPE_OCTET);
             writeFile.addHeader(API, json.toJson(new WriteFileArgs(filePath)));
 
             writeFile.setPayload(bytes);
@@ -61,11 +62,11 @@ public class IODropbox {
         }
     }
 
-    public static byte[] read(String file) {
+    public static byte[] read(String filePath) {
         try{
             var readFile = new OAuthRequest(Verb.POST, DOWNLOAD_URL);
-            readFile.addHeader(CONTENT_TYPE_HDR, JSON_CONTENT_TYPE);
-            readFile.addHeader(API, json.toJson(new ReadFileArgs(file)));
+            readFile.addHeader(CONTENT_TYPE_HDR, JSON_CONTENT_TYPE_OCTET);
+            readFile.addHeader(API, json.toJson(new ReadFileArgs(filePath)));
             
             service.signRequest(accessToken, readFile);
             
@@ -80,20 +81,33 @@ public class IODropbox {
     }
 
     public void delete(String filePath) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'delete'");
+        try {
+            var deleteFile = new OAuthRequest(Verb.POST, DELETE_URL);
+            deleteFile.addHeader(CONTENT_TYPE_HDR, JSON_CONTENT_TYPE_CHARSET);
+            deleteFile.setPayload(json.toJson(new DeleteFileArgs(filePath)));
+
+            service.signRequest(accessToken, deleteFile);
+
+            Response r = service.execute(deleteFile);
+            if (r.getCode() != HTTP_SUCCESS) 
+                throw new RuntimeException("Failed to delete file: " + r.getCode() + " " + r.getBody());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
-    public void cleanDropbox() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'cleanDropbox'");
+    public void cleanDropbox() throws Exception{
+        List<String> dir = listDirectory("/tukano");
+        for (String d : dir) {
+            delete("/tukano/"+ d);
+        }
     }
 
     public List<String> listDirectory(String filePath) throws Exception{
         var directoryContents = new ArrayList<String>();
 
 		var listDirectory = new OAuthRequest(Verb.POST, LIST_FOLDER_URL);
-		listDirectory.addHeader(CONTENT_TYPE_HDR, JSON_CONTENT_TYPE);
+		listDirectory.addHeader(CONTENT_TYPE_HDR, JSON_CONTENT_TYPE_CHARSET);
 		listDirectory.setPayload(json.toJson(new ListFolderArgs(filePath)));
 
 		service.signRequest(accessToken, listDirectory);
@@ -107,7 +121,7 @@ public class IODropbox {
 		
 		while( reply.has_more() ) {
 			listDirectory = new OAuthRequest(Verb.POST, LIST_FOLDER_CONTINUE_URL);
-			listDirectory.addHeader(CONTENT_TYPE_HDR, JSON_CONTENT_TYPE);
+			listDirectory.addHeader(CONTENT_TYPE_HDR, JSON_CONTENT_TYPE_CHARSET);
 			
 			// In this case the arguments is just an object containing the cursor that was
 			// returned in the previous reply.
@@ -128,7 +142,7 @@ public class IODropbox {
 
     public boolean createDirectory(String directoryName) throws Exception {
         var createFolder = new OAuthRequest(Verb.POST, CREATE_FOLDER_V2_URL);
-		createFolder.addHeader(CONTENT_TYPE_HDR, JSON_CONTENT_TYPE);
+		createFolder.addHeader(CONTENT_TYPE_HDR, JSON_CONTENT_TYPE_CHARSET);
 
 		createFolder.setPayload(json.toJson(new CreateFolderV2Args(directoryName, false)));
 
