@@ -19,7 +19,7 @@ public class IODropbox {
 
     private static final String apiKey = "e1cnnhudp3nwwu5";
     private static final String apiSecret = "mji6dkyofw78cgm";
-    private static final String accessTokenStr = "sl.B10TFbLgkH66xmPJvrDN2ZT40MPxhlTV8u8D8rcQVb8xXVUBXFHd5IBYB2MdoHDNziMy9u8iZFCz3QqR0wJgmIdtvsGnWKcz_354gbfehcjnbo8D9ElPn6RfbGlN_wbZ1c7tNUDYkKOg";
+    private static final String accessTokenStr = "sl.B17NnUEpMYjezng8d_pQ0o_7nJlXsINcAk5lqvLEVMf_Jmfj_j_SC6Yw7zdnugdamAE1dvQQytG6ShUpfcoEuE4HL9hSNR3wdgJuCvLGFHGSShtyhJTesDU0fynITtjD0DbwPuvMbWGL";
 
     private static final String API = "Dropbox-API-Arg";
     private static final String UPLOAD_URL = "https://content.dropboxapi.com/2/files/upload";
@@ -149,8 +149,7 @@ public class IODropbox {
 		service.signRequest(accessToken, createFolder);
 		
 		Response r = service.execute(createFolder);
-		// if (r.getCode() != HTTP_SUCCESS) 
-		// 	throw new RuntimeException(String.format("Failed to create directory: %s, Status: %d, \nReason: %s\n", directoryName, r.getCode(), r.getBody()));
+
         return r.getCode() == HTTP_SUCCESS || r.getCode() == 409;
     }
 }
