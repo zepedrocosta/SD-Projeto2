@@ -105,8 +105,6 @@ public class JavaShorts implements ExtendedShorts {
 
             var shortId = format("%s-%d", userId, counter.incrementAndGet());
 
-            var test = Discovery.getInstance().knownUrisOf(Blobs.NAME, 1);
-
             Set<String> blobsURLs = Arrays.stream(Discovery.getInstance().knownUrisOf(Blobs.NAME, 1))
                     .map(URI::toString)
                     .collect(Collectors.toSet());
