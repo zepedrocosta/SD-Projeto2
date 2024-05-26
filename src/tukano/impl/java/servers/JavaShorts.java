@@ -15,8 +15,10 @@ import static tukano.impl.java.clients.Clients.UsersClients;
 import static utils.DB.getOne;
 
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
@@ -31,6 +33,7 @@ import tukano.api.User;
 import tukano.api.java.Blobs;
 import tukano.api.java.Result;
 import tukano.impl.api.java.ExtendedShorts;
+import tukano.impl.discovery.Discovery;
 import tukano.impl.java.servers.data.Following;
 import tukano.impl.java.servers.data.Likes;
 import utils.DB;
@@ -103,7 +106,24 @@ public class JavaShorts implements ExtendedShorts {
 		return errorOrResult( okUser(userId, password), user -> {
 			
 			var shortId = format("%s-%d", userId, counter.incrementAndGet());
-			var blobUrl = format("%s/%s/%s", getLeastLoadedBlobServerURI(), Blobs.NAME, shortId); 
+
+			var blobs = Discovery.getInstance().knownUrisOf(Blobs.NAME, 1);
+			Set<String> blobsURLs = new HashSet<>();
+			for (var blob : blobs) {
+				blobsURLs.add(blob.toString());
+			}
+
+			var firstBlob = blobsURLs.iterator().next();
+			var blobUrl = format("%s/%s/%s", firstBlob, Blobs.NAME, shortId);
+			blobsURLs.remove(firstBlob);
+
+			while (blobsURLs.size() > 0) {
+				var blob = blobsURLs.iterator().next();
+				blobsURLs.remove(blob);
+				blobUrl += "|" + format("%s/%s/%s", blob, Blobs.NAME, shortId);
+			}
+
+
 			var shrt = new Short(shortId, userId, blobUrl);
 
 			return DB.insertOne(shrt);

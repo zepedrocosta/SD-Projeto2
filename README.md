@@ -50,4 +50,5 @@ mvn clean compile assembly:single docker:build
 
 ### Kafka
 
-* 107a -
+* 107a - **OK**
+* 107b -
