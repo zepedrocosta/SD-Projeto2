@@ -37,6 +37,7 @@ import tukano.impl.java.servers.data.Likes;
 import utils.DB;
 import utils.Token;
 import utils.kafka.KafkaPublisher;
+import utils.kafka.KafkaSubscriber;
 
 public class JavaShorts implements ExtendedShorts {
 
@@ -47,17 +48,31 @@ public class JavaShorts implements ExtendedShorts {
 	AtomicLong counter = new AtomicLong( totalShortsInDatabase() );
 
 	private final KafkaPublisher publisher;
+
+	private final KafkaSubscriber receiver;
 	
 	private static final long USER_CACHE_EXPIRATION = 3000;
 	private static final long SHORTS_CACHE_EXPIRATION = 3000;
 	private static final long BLOBS_USAGE_CACHE_EXPIRATION = 10000;
 
 	public JavaShorts() {
-		this(null);
+		publisher = null;
+		receiver = null;
 	}
 
 	public JavaShorts(KafkaPublisher publisher) {
 		this.publisher = publisher;
+		this.receiver = null;
+	}
+
+	public JavaShorts(KafkaSubscriber receiver) {
+		this.publisher = null;
+		this.receiver = receiver;
+		this.receiver.start(true, null);
+
+		new Thread( () -> {
+
+		}).start();
 	}
 
 	static record Credentials(String userId, String pwd) {
@@ -264,6 +279,7 @@ public class JavaShorts implements ExtendedShorts {
                     var shrt = res.value();
                     shrt.setBlobUrl(newBlobUrl);
                     DB.updateOne(shrt);
+					publish("update " + shortId);
                     return ok(shrt);
                 }
 
@@ -317,7 +333,6 @@ public class JavaShorts implements ExtendedShorts {
 
 			publish("deleteAllShorts " + userId);
 		});
-
 
 	}
 

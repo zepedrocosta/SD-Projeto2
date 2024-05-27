@@ -17,8 +17,7 @@ public class RestShortsResource extends RestResource implements RestExtendedShor
 	public RestShortsResource() {
 		this.impl = new JavaShorts(KafkaPublisher.createPublisher("kafka:9092"));
 	}
-	
-	
+
 	@Override
 	public Short createShort(String userId, String password) {
 		return super.resultOrThrow( impl.createShort(userId, password));

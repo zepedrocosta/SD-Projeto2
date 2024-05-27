@@ -12,7 +12,7 @@ import utils.Token;
 
 
 public abstract class AbstractServer {
-	protected static final String INETADDR_ANY = "localhost";
+	protected static final String INETADDR_ANY = "0.0.0.0";
 
 	final protected Logger Log;
 	final protected String serverURI;

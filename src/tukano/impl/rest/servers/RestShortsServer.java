@@ -9,7 +9,6 @@ import tukano.api.java.Shorts;
 import tukano.impl.rest.servers.utils.CustomLoggingFilter;
 import tukano.impl.rest.servers.utils.GenericExceptionMapper;
 import utils.Args;
-import utils.kafka.KafkaPublisher;
 import utils.kafka.KafkaUtils;
 
 

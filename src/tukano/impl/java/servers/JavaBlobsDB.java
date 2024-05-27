@@ -30,7 +30,7 @@ import utils.Token;
 
 
 public class JavaBlobsDB implements ExtendedBlobs {
-	private static final String BLOBS_ROOT_DIR = "/tukano/" + IP.hostName() + "/";
+	private static final String BLOBS_ROOT_DIR = "/tukano/" + IP.hostname() + "/";
 
 	private static Logger Log = Logger.getLogger(JavaBlobsDB.class.getName());
 
