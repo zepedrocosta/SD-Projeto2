@@ -9,12 +9,7 @@ import static tukano.api.java.Result.ErrorCode.FORBIDDEN;
 import static tukano.api.java.Result.ErrorCode.INTERNAL_ERROR;
 import static tukano.api.java.Result.ErrorCode.NOT_FOUND;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
@@ -35,6 +30,8 @@ public class JavaBlobsDB implements ExtendedBlobs {
 	private static Logger Log = Logger.getLogger(JavaBlobsDB.class.getName());
 
 	private static final int CHUNK_SIZE = 4096;
+
+	private IODropbox dropbox = new IODropbox();
 
 	@Override
 	public Result<Void> upload(String blobId, byte[] bytes) {
@@ -127,7 +124,6 @@ public class JavaBlobsDB implements ExtendedBlobs {
 			return error(FORBIDDEN);
 
 		var filePath = toFilePath(blobId);
-		IODropbox dropbox = new IODropbox();
 
 		if (filePath == null)
 			return error(BAD_REQUEST);
@@ -145,20 +141,20 @@ public class JavaBlobsDB implements ExtendedBlobs {
 	}
 
 	@Override
-	public Result<Void> deleteAllBlobs(String userId, String token) {
+	// Delete all blobs do user
+	public Result<Void> deleteAllBlobs(String userId, String token){
 		Log.info(() -> format("deleteAllBlobs : userId = %s, token=%s\n", userId, token));
 
 		if (!Token.matches(token))
 			return error(FORBIDDEN);
 
+		IODropbox dropbox = new IODropbox();
 		try {
-			var path = new File(BLOBS_ROOT_DIR + userId);
-			Files.walk(path.toPath()).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
-			return ok();
-		} catch (IOException e) {
-			e.printStackTrace();
+			// dropbox.cleanDropbox();
+		} catch (Exception e) {
 			return error(INTERNAL_ERROR);
 		}
+		return ok();
 	}
 
 	private boolean validBlobId(String blobId) {
