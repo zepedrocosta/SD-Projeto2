@@ -30,6 +30,8 @@ public class IODropbox {
     private static final String CREATE_FOLDER_V2_URL = "https://api.dropboxapi.com/2/files/create_folder_v2";
 
     private static final int HTTP_SUCCESS = 200;
+    private static final int HTTP_CONFLICT = 409;
+    
     private static final String CONTENT_TYPE_HDR = "Content-Type";
     private static final String JSON_CONTENT_TYPE_CHARSET = "application/json; charset=utf-8";
     private static final String JSON_CONTENT_TYPE_OCTET = "application/octet-stream";
@@ -150,6 +152,6 @@ public class IODropbox {
 		
 		Response r = service.execute(createFolder);
 
-        return r.getCode() == HTTP_SUCCESS || r.getCode() == 409;
+        return r.getCode() == HTTP_SUCCESS || r.getCode() == HTTP_CONFLICT;
     }
 }
