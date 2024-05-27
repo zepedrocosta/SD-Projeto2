@@ -54,7 +54,7 @@ class DiscoveryImpl implements Discovery {
 	
 	private static Logger Log = Logger.getLogger(Discovery.class.getName());
 
-	static final int DISCOVERY_RETRY_TIMEOUT = 5000;
+	static final int DISCOVERY_CLEAR_SLEEP = 7000;
 	static final int DISCOVERY_ANNOUNCE_PERIOD = 1000;
 	static final InetSocketAddress DISCOVERY_ADDR = new InetSocketAddress("226.226.226.226", 2266);
 
@@ -107,8 +107,9 @@ class DiscoveryImpl implements Discovery {
 	public URI[] knownUrisOf(String serviceName, int minEntries) {
 		while(true) {
 			var res = uris.getOrDefault(serviceName, Collections.emptySet());
-			if( res.size() >= minEntries )
-				return res.toArray( new URI[res.size()]);
+			if( res.size() >= minEntries ) {
+				return res.toArray(new URI[res.size()]);
+			}
 			else
 				Sleep.ms(DISCOVERY_ANNOUNCE_PERIOD);
 				
@@ -141,6 +142,13 @@ class DiscoveryImpl implements Discovery {
 				}
 			} catch (Exception x) {
 				x.printStackTrace();
+			}
+		}).start();
+
+		new Thread(() -> {
+			while (true) {
+				uris.clear();
+				Sleep.ms(DISCOVERY_CLEAR_SLEEP);
 			}
 		}).start();
 	}
