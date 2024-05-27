@@ -41,7 +41,6 @@ public class JavaBlobsDB implements ExtendedBlobs {
 			return error(FORBIDDEN);
 
 		String filePath = toFilePath(blobId);
-		IODropbox dropbox = new IODropbox();
 
 		if (filePath == null)
 			return error(BAD_REQUEST);
@@ -73,9 +72,8 @@ public class JavaBlobsDB implements ExtendedBlobs {
 		if (filePath == null)
 			return error(BAD_REQUEST);
 
-		IODropbox dropbox = new IODropbox();
 		try {
-			if (hasBlob(filePath, dropbox)) {
+			if (hasBlob(filePath)) {
 				byte[] file = IODropbox.read(filePath);	
 				return ok(file);
 			} else
@@ -91,7 +89,6 @@ public class JavaBlobsDB implements ExtendedBlobs {
 		Log.info(() -> format("downloadToSink : blobId = %s\n", blobId));
 
 		var filePath = toFilePath(blobId);
-		IODropbox dropbox = new IODropbox();
 
 		if (filePath == null)
 			return error(BAD_REQUEST);
@@ -148,7 +145,7 @@ public class JavaBlobsDB implements ExtendedBlobs {
 		if (!Token.matches(token))
 			return error(FORBIDDEN);
 
-		IODropbox dropbox = new IODropbox();
+		// IODropbox dropbox = new IODropbox();
 		try {
 			// dropbox.cleanDropbox();
 		} catch (Exception e) {
@@ -180,9 +177,7 @@ public class JavaBlobsDB implements ExtendedBlobs {
 		return url.substring(0, lastSlashIndex);
 	}
 
-	private boolean hasBlob(String filePath, IODropbox dropbox) throws Exception {
-		Log.info(blobFolder(filePath));
-		Log.info(filePath);
+	private boolean hasBlob(String filePath) throws Exception {
 		List<String> files = dropbox.listDirectory(blobFolder(filePath));
 		for (String file : files) {
 			String path = blobFolder(filePath) + "/" + file;
