@@ -69,10 +69,6 @@ public class JavaShorts implements ExtendedShorts {
 		this.publisher = null;
 		this.receiver = receiver;
 		this.receiver.start(true, null);
-
-		new Thread( () -> {
-
-		}).start();
 	}
 
 	static record Credentials(String userId, String pwd) {
