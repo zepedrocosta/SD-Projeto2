@@ -36,9 +36,22 @@ mvn clean compile assembly:single docker:build
 * 104a - **OK**
 * 104b - **OK**
 * 104c - **OK**
-* 105a -
-* 105b -
-* 105c -
-* 105d -
+
+### Dropbox
+
+* 105a - **OK**
+* 105b - **OK**
+* 105c - **OK**
+* 105d - **OK**
+
+### 
+
 * 106a - **OK**
-* 107a -
+
+### Blobs Replication
+
+* 107a - **OK**
+* 107b - **OK**
+* 107c - **OK**
+
+### Kafka

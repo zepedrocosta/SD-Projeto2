@@ -14,9 +14,9 @@ import static tukano.impl.java.clients.Clients.BlobsClients;
 import static tukano.impl.java.clients.Clients.UsersClients;
 import static utils.DB.getOne;
 
+import java.net.URI;
 import java.time.Duration;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
@@ -31,6 +31,7 @@ import tukano.api.User;
 import tukano.api.java.Blobs;
 import tukano.api.java.Result;
 import tukano.impl.api.java.ExtendedShorts;
+import tukano.impl.discovery.Discovery;
 import tukano.impl.java.servers.data.Following;
 import tukano.impl.java.servers.data.Likes;
 import utils.DB;
@@ -38,6 +39,7 @@ import utils.Token;
 import utils.kafka.KafkaPublisher;
 
 public class JavaShorts implements ExtendedShorts {
+
 	private static final String BLOB_COUNT = "*";
 
 	private static Logger Log = Logger.getLogger(JavaShorts.class.getName());
@@ -113,8 +115,7 @@ public class JavaShorts implements ExtendedShorts {
 		return errorOrResult( okUser(userId, password), user -> {
 			
 			var shortId = format("%s-%d", userId, counter.incrementAndGet());
-			var blobUrl = format("%s/%s/%s", getLeastLoadedBlobServerURI(), Blobs.NAME, shortId); 
-			var shrt = new Short(shortId, userId, blobUrl);
+			var shrt = new Short(shortId, userId, getBlobsUrls(shortId));
 
 			var operation = DB.insertOne(shrt);
 			if (operation.error() == null)
@@ -252,14 +253,36 @@ public class JavaShorts implements ExtendedShorts {
 			return error( res.error() );
 	}
 	
-	protected Result<Short> shortFromCache( String shortId ) {
-		try {
-			return shortsCache.get(shortId);
-		} catch (ExecutionException e) {
-			e.printStackTrace();
-			return error(INTERNAL_ERROR);
-		}
-	}
+    protected Result<Short> shortFromCache(String shortId) {
+        try {
+            var res = shortsCache.get(shortId);
+            var newBlobUrl = getBlobsUrls(shortId);
+
+            if (res.isOK())
+                if (!res.value().getBlobUrl().equals(newBlobUrl)) {
+                    shortsCache.invalidate(shortId);
+                    var shrt = res.value();
+                    shrt.setBlobUrl(newBlobUrl);
+                    DB.updateOne(shrt);
+                    return ok(shrt);
+                }
+
+            return shortsCache.get(shortId);
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+            return error(INTERNAL_ERROR);
+        }
+    }
+  
+     private String getBlobsUrls(String shortId) {
+        var blobsURLs = Discovery.getInstance().knownUrisOf(Blobs.NAME, 1);
+        StringBuilder blobUrl = new StringBuilder(format("%s/%s/%s", blobsURLs[0], Blobs.NAME, shortId));
+
+        for (int i = 1; i < blobsURLs.length; i++)
+            blobUrl.append("|").append(format("%s/%s/%s", blobsURLs[i], Blobs.NAME, shortId));
+
+        return blobUrl.toString();
+    }
 
 	// Extended API 
 	
@@ -330,8 +353,5 @@ public class JavaShorts implements ExtendedShorts {
 		return 1L + (hits.isEmpty() ? 0L : hits.get(0));
 	}
 
-	
-	
-	
 }
 
