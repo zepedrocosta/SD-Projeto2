@@ -105,22 +105,7 @@ public class JavaShorts implements ExtendedShorts {
 
             var shortId = format("%s-%d", userId, counter.incrementAndGet());
 
-            Set<String> blobsURLs = Arrays.stream(Discovery.getInstance().knownUrisOf(Blobs.NAME, 1))
-                    .map(URI::toString)
-                    .collect(Collectors.toSet());
-
-            var firstBlob = blobsURLs.iterator().next();
-            var blobUrl = format("%s/%s/%s", firstBlob, Blobs.NAME, shortId);
-            blobsURLs.remove(firstBlob);
-
-            while (blobsURLs.size() > 0) {
-                var blob = blobsURLs.iterator().next();
-                blobsURLs.remove(blob);
-                blobUrl += "|" + format("%s/%s/%s", blob, Blobs.NAME, shortId);
-            }
-
-
-            var shrt = new Short(shortId, userId, blobUrl);
+            var shrt = new Short(shortId, userId, getBlobsUrls(shortId));
 
             return DB.insertOne(shrt);
         });
@@ -129,6 +114,8 @@ public class JavaShorts implements ExtendedShorts {
     @Override
     public Result<Short> getShort(String shortId) {
         Log.info(() -> format("getShort : shortId = %s\n", shortId));
+
+        Log.info(Arrays.toString(Discovery.getInstance().knownUrisOf("blobs", 1)));
 
         if (shortId == null)
             return error(BAD_REQUEST);
@@ -244,11 +231,33 @@ public class JavaShorts implements ExtendedShorts {
 
     protected Result<Short> shortFromCache(String shortId) {
         try {
+            var res = shortsCache.get(shortId);
+            var newBlobUrl = getBlobsUrls(shortId);
+
+            if (res.isOK())
+                if (!res.value().getBlobUrl().equals(newBlobUrl)) {
+                    shortsCache.invalidate(shortId);
+                    var shrt = res.value();
+                    shrt.setBlobUrl(newBlobUrl);
+                    DB.updateOne(shrt);
+                    return ok(shrt);
+                }
+
             return shortsCache.get(shortId);
         } catch (ExecutionException e) {
             e.printStackTrace();
             return error(INTERNAL_ERROR);
         }
+    }
+
+    private String getBlobsUrls(String shortId) {
+        var blobsURLs = Discovery.getInstance().knownUrisOf(Blobs.NAME, 1);
+        StringBuilder blobUrl = new StringBuilder(format("%s/%s/%s", blobsURLs[0], Blobs.NAME, shortId));
+
+        for (int i = 1; i < blobsURLs.length; i++)
+            blobUrl.append("|").append(format("%s/%s/%s", blobsURLs[i], Blobs.NAME, shortId));
+
+        return blobUrl.toString();
     }
 
     // Extended API
@@ -283,7 +292,6 @@ public class JavaShorts implements ExtendedShorts {
             });
         });
     }
-
 
     private String getLeastLoadedBlobServerURI() {
         try {

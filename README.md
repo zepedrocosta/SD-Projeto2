@@ -48,7 +48,10 @@ mvn clean compile assembly:single docker:build
 
 * 106a - **OK**
 
-### Kafka
+### Blobs Replication
 
 * 107a - **OK**
-* 107b -
+* 107b - **OK**
+* 107c - **OK**
+
+### Kafka
