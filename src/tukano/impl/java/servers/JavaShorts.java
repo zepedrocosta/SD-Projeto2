@@ -13,19 +13,15 @@ import static tukano.api.java.Result.ErrorCode.TIMEOUT;
 import static tukano.impl.java.clients.Clients.BlobsClients;
 import static tukano.impl.java.clients.Clients.UsersClients;
 import static utils.DB.getOne;
-
-import java.net.URI;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-
 import tukano.api.Short;
 import tukano.api.User;
 import tukano.api.java.Blobs;
@@ -36,8 +32,6 @@ import tukano.impl.java.servers.data.Following;
 import tukano.impl.java.servers.data.Likes;
 import utils.DB;
 import utils.Token;
-import utils.kafka.KafkaPublisher;
-import utils.kafka.KafkaSubscriber;
 
 public class JavaShorts implements ExtendedShorts {
 
@@ -46,30 +40,11 @@ public class JavaShorts implements ExtendedShorts {
 	private static Logger Log = Logger.getLogger(JavaShorts.class.getName());
 
 	AtomicLong counter = new AtomicLong( totalShortsInDatabase() );
-
-	private final KafkaPublisher publisher;
-
-	private final KafkaSubscriber receiver;
 	
 	private static final long USER_CACHE_EXPIRATION = 3000;
 	private static final long SHORTS_CACHE_EXPIRATION = 3000;
 	private static final long BLOBS_USAGE_CACHE_EXPIRATION = 10000;
 
-	public JavaShorts() {
-		publisher = null;
-		receiver = null;
-	}
-
-	public JavaShorts(KafkaPublisher publisher) {
-		this.publisher = publisher;
-		this.receiver = null;
-	}
-
-	public JavaShorts(KafkaSubscriber receiver) {
-		this.publisher = null;
-		this.receiver = receiver;
-		this.receiver.start(true, null);
-	}
 
 	static record Credentials(String userId, String pwd) {
 		static Credentials from(String userId, String pwd) {
@@ -124,15 +99,10 @@ public class JavaShorts implements ExtendedShorts {
 		Log.info(() -> format("createShort : userId = %s, pwd = %s\n", userId, password));
 
 		return errorOrResult( okUser(userId, password), user -> {
-			
 			var shortId = format("%s-%d", userId, counter.incrementAndGet());
 			var shrt = new Short(shortId, userId, getBlobsUrls(shortId));
 
-			var operation = DB.insertOne(shrt);
-			if (operation.error() == null)
-				publish("create " + shortId);
-
-			return operation;
+			return DB.insertOne(shrt);
 		});
 	}
 
@@ -164,7 +134,6 @@ public class JavaShorts implements ExtendedShorts {
 					
 					BlobsClients.get().delete(shrt.getBlobUrl(), Token.get() );
 
-					publish("delete " + shortId);
 				});
 			});	
 		});
@@ -186,11 +155,8 @@ public class JavaShorts implements ExtendedShorts {
 		return errorOrResult( okUser(userId1, password), user -> {
 			var f = new Following(userId1, userId2);
 
-			var operation = errorOrVoid( okUser( userId2), isFollowing ? DB.insertOne( f ) : DB.deleteOne( f ));
-			if( operation.error() == null )
-				publish("follow " + userId1 + " " + userId2);
 
-			return operation;
+			return errorOrVoid( okUser( userId2), isFollowing ? DB.insertOne( f ) : DB.deleteOne( f ));
 		});			
 	}
 
@@ -212,11 +178,7 @@ public class JavaShorts implements ExtendedShorts {
 			
 			var l = new Likes(userId, shortId, shrt.getOwnerId());
 
-			var operation = errorOrVoid( okUser( userId, password), isLiked ? DB.insertOne( l ) : DB.deleteOne( l ));
-			if( operation.error() == null )
-				publish("like " + shortId + " " + userId);
-
-			return 	operation;
+			return errorOrVoid( okUser( userId, password), isLiked ? DB.insertOne( l ) : DB.deleteOne( l ));
 		});
 	}
 
@@ -275,7 +237,6 @@ public class JavaShorts implements ExtendedShorts {
                     var shrt = res.value();
                     shrt.setBlobUrl(newBlobUrl);
                     DB.updateOne(shrt);
-					publish("update " + shortId);
                     return ok(shrt);
                 }
 
@@ -327,14 +288,8 @@ public class JavaShorts implements ExtendedShorts {
 				hibernate.remove(l);
 			});
 
-			publish("deleteAllShorts " + userId);
 		});
 
-	}
-
-	private void publish(String value) {
-		if (publisher != null)
-			publisher.publish("shorts", value);
 	}
 	
 	private String getLeastLoadedBlobServerURI() {

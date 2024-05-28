@@ -1,19 +1,20 @@
 package tukano.impl.rest.servers;
 
+import jakarta.ws.rs.ext.Provider;
 import tukano.api.Short;
 import tukano.impl.api.java.ExtendedShorts;
 import tukano.impl.api.rest.RestExtendedShorts;
-import tukano.impl.java.servers.JavaShorts;
-import utils.kafka.KafkaSubscriber;
+import tukano.impl.java.servers.JavaShortsReplicaManager;
 
 import java.util.List;
 
+@Provider
 public class RestShortsReplicaResource extends RestResource implements RestExtendedShorts {
 
     final ExtendedShorts impl;
 
     public RestShortsReplicaResource() {
-        this.impl = new JavaShorts(KafkaSubscriber.createSubscriber("kafka:9092", List.of("shorts"), "earliest"));
+        this.impl = new JavaShortsReplicaManager();
     }
 
     @Override
