@@ -138,16 +138,20 @@ public class JavaBlobsDB implements ExtendedBlobs {
 	}
 
 	@Override
-	// Delete all blobs do user
 	public Result<Void> deleteAllBlobs(String userId, String token){
 		Log.info(() -> format("deleteAllBlobs : userId = %s, token=%s\n", userId, token));
 
 		if (!Token.matches(token))
 			return error(FORBIDDEN);
 
-		// IODropbox dropbox = new IODropbox();
 		try {
-			// dropbox.cleanDropbox();
+			List<String> dir = dropbox.listDirectory("/tukano/" + IP.hostName());
+			for (String d : dir){
+				String directory = BLOBS_ROOT_DIR + userId;
+				if(d.equals(directory)){
+					dropbox.delete(directory);
+				}
+			}
 		} catch (Exception e) {
 			return error(INTERNAL_ERROR);
 		}
