@@ -66,6 +66,8 @@ class DiscoveryImpl implements Discovery {
 	private static Discovery singleton;
 
 	private Map<String, Set<URI>> uris = new ConcurrentHashMap<>();
+
+	private Map<String[], Long> urisTimestamps = new ConcurrentHashMap<>();
 	
 	synchronized static Discovery getInstance() {
 		if (singleton == null) {
@@ -134,6 +136,7 @@ class DiscoveryImpl implements Discovery {
 							var serviceName = parts[0];
 							var uri = URI.create(parts[1]);
 							uris.computeIfAbsent(serviceName, (k) -> ConcurrentHashMap.newKeySet()).add( uri );
+							urisTimestamps.put(new String[] {serviceName, uri.toString()}, System.currentTimeMillis());
 						}
 
 					} catch (Exception x) {
@@ -147,8 +150,13 @@ class DiscoveryImpl implements Discovery {
 
 		new Thread(() -> {
 			while (true) {
-				uris.clear();
-				Sleep.ms(DISCOVERY_CLEAR_SLEEP);
+				for (var entry : urisTimestamps.entrySet()) {
+					if (System.currentTimeMillis() - entry.getValue() > DISCOVERY_CLEAR_SLEEP) {
+						uris.get(entry.getKey()[0]).remove(URI.create(entry.getKey()[1]));
+						urisTimestamps.remove(entry.getKey());
+					}
+				}
+				Sleep.ms(100);
 			}
 		}).start();
 	}
