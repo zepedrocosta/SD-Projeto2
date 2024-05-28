@@ -149,14 +149,14 @@ class DiscoveryImpl implements Discovery {
 		}).start();
 
 		new Thread(() -> {
-			while (true) {
+			for(;;) {
 				for (var entry : urisTimestamps.entrySet()) {
 					if (System.currentTimeMillis() - entry.getValue() > DISCOVERY_CLEAR_SLEEP) {
 						uris.get(entry.getKey()[0]).remove(URI.create(entry.getKey()[1]));
 						urisTimestamps.remove(entry.getKey());
 					}
 				}
-				Sleep.ms(100);
+				Sleep.ms(DISCOVERY_CLEAR_SLEEP);
 			}
 		}).start();
 	}

@@ -105,7 +105,7 @@ public class JavaShorts implements ExtendedShorts {
 
             var shortId = format("%s-%d", userId, counter.incrementAndGet());
 
-            var shrt = new Short(shortId, userId, getBlobsUrls(shortId));
+            var shrt = new Short(shortId, userId, getLeastLoadedBlobServerURI(shortId));
 
             return DB.insertOne(shrt);
         });
@@ -114,8 +114,6 @@ public class JavaShorts implements ExtendedShorts {
     @Override
     public Result<Short> getShort(String shortId) {
         Log.info(() -> format("getShort : shortId = %s\n", shortId));
-
-        Log.info(Arrays.toString(Discovery.getInstance().knownUrisOf("blobs", 1)));
 
         if (shortId == null)
             return error(BAD_REQUEST);
@@ -232,32 +230,37 @@ public class JavaShorts implements ExtendedShorts {
     protected Result<Short> shortFromCache(String shortId) {
         try {
             var res = shortsCache.get(shortId);
-            var newBlobUrl = getBlobsUrls(shortId);
+            Short shrt;
 
-            if (res.isOK())
-                if (!res.value().getBlobUrl().equals(newBlobUrl)) {
-                    shortsCache.invalidate(shortId);
-                    var shrt = res.value();
-                    shrt.setBlobUrl(newBlobUrl);
-                    DB.updateOne(shrt);
-                    return ok(shrt);
+            if (res.isOK()) {
+                shrt = res.value();
+                var servers = Discovery.getInstance().knownUrisOf(Blobs.NAME, 1);
+                List<String> formattedURLs = new ArrayList<>();
+
+                for (var server : servers)
+                    formattedURLs.add(format("%s/%s/%s", server.toString(), Blobs.NAME, shortId));
+
+                var blobURLs = new LinkedList<>(Arrays.asList(shrt.getBlobUrl().split("\\|")));
+                Log.info("blobURL: " + shrt.getBlobUrl());
+                Log.info(shortId + ": " + blobURLs);
+
+                for (var url : blobURLs) {
+                    Log.info("url: " + url);
+                    if (!formattedURLs.contains(url)) {
+                        blobURLs.remove(url);
+                        shrt.setBlobUrl(blobURLs.get(0));
+                        DB.updateOne(shrt);
+                        break;
+                    }
                 }
+                return ok(shrt);
+            }
 
-            return shortsCache.get(shortId);
+            return res;
         } catch (ExecutionException e) {
             e.printStackTrace();
             return error(INTERNAL_ERROR);
         }
-    }
-
-    private String getBlobsUrls(String shortId) {
-        var blobsURLs = Discovery.getInstance().knownUrisOf(Blobs.NAME, 1);
-        StringBuilder blobUrl = new StringBuilder(format("%s/%s/%s", blobsURLs[0], Blobs.NAME, shortId));
-
-        for (int i = 1; i < blobsURLs.length; i++)
-            blobUrl.append("|").append(format("%s/%s/%s", blobsURLs[i], Blobs.NAME, shortId));
-
-        return blobUrl.toString();
     }
 
     // Extended API
@@ -293,9 +296,11 @@ public class JavaShorts implements ExtendedShorts {
         });
     }
 
-    private String getLeastLoadedBlobServerURI() {
+    private String getLeastLoadedBlobServerURI(String shortId) {
         try {
             var servers = blobCountCache.get(BLOB_COUNT);
+            String primary = "";
+            String replica = "";
 
             var leastLoadedServer = servers.entrySet()
                     .stream()
@@ -305,8 +310,31 @@ public class JavaShorts implements ExtendedShorts {
             if (leastLoadedServer.isPresent()) {
                 var uri = leastLoadedServer.get().getKey();
                 servers.compute(uri, (k, v) -> v + 1L);
-                return uri;
+                primary = uri;
             }
+
+            leastLoadedServer = servers.entrySet()
+                    .stream()
+                    .sorted((e1, e2) -> Long.compare(e1.getValue(), e2.getValue()))
+                    .findFirst();
+
+            if (leastLoadedServer.isPresent()) {
+                var uri = leastLoadedServer.get().getKey();
+                servers.compute(uri, (k, v) -> v + 1L);
+                replica = uri;
+            }
+
+            /*if (primary.equals(replica))
+                return primary;
+            else if (primary.isEmpty() && replica.isEmpty())
+                return "?";
+            else if (primary.isEmpty())
+                return format("%s/%s/%s", replica, Blobs.NAME, shortId);
+            else if (replica.isEmpty())
+                return format("%s/%s/%s", primary, Blobs.NAME, shortId);
+            else*/
+                return format("%s/%s/%s", primary, Blobs.NAME, shortId) + "|" + format("%s/%s/%s", replica, Blobs.NAME, shortId);
+
         } catch (Exception x) {
             x.printStackTrace();
         }
