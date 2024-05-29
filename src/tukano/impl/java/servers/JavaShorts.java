@@ -248,7 +248,11 @@ public class JavaShorts implements ExtendedShorts {
                     Log.info("url: " + url);
                     if (!formattedURLs.contains(url)) {
                         blobURLs.remove(url);
-                        shrt.setBlobUrl(blobURLs.get(0));
+                        var newUrl = getOtherUrl(url, shortId);
+                        if (newUrl.equals("?"))
+                            shrt.setBlobUrl(blobURLs.get(0));
+                        else
+                            shrt.setBlobUrl(blobURLs.get(0) + "|" + newUrl);
                         DB.updateOne(shrt);
                         break;
                     }
@@ -261,6 +265,47 @@ public class JavaShorts implements ExtendedShorts {
             e.printStackTrace();
             return error(INTERNAL_ERROR);
         }
+    }
+
+    private String getOtherUrl(String blobUrl, String shortId) {
+        try {
+            var servers = blobCountCache.get(BLOB_COUNT);
+
+            var leastLoadedServer = servers.entrySet()
+                    .stream()
+                    .sorted((e1, e2) -> Long.compare(e1.getValue(), e2.getValue()))
+                    .findFirst();
+
+            if (leastLoadedServer.isPresent()) {
+                var newUrl = format("%s/%s/%s", leastLoadedServer.get().getKey(), Blobs.NAME, shortId);
+
+                if (!newUrl.equals(blobUrl)) {
+                    servers.compute(leastLoadedServer.get().getKey(), (k, v) -> v + 1L);
+                    return newUrl;
+                }
+                else {
+                    try {
+                        leastLoadedServer = servers.entrySet()
+                                .stream()
+                                .sorted((e1, e2) -> Long.compare(e1.getValue(), e2.getValue()))
+                                .skip(1)
+                                .findFirst();
+
+                        if (leastLoadedServer.isPresent()) {
+                            var uri = leastLoadedServer.get().getKey();
+                            servers.compute(uri, (k, v) -> v + 1L);
+                            return format("%s/%s/%s", uri, Blobs.NAME, shortId);
+                        }
+                    } catch (Exception x) {
+                        return "?";
+                    }
+                }
+            }
+
+        } catch (Exception x) {
+            x.printStackTrace();
+        }
+        return "?";
     }
 
     // Extended API
