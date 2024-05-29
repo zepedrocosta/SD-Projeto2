@@ -11,6 +11,8 @@ import tukano.api.java.Result;
 import tukano.impl.api.java.ExtendedShorts;
 import utils.DB;
 import utils.kafka.KafkaSubscriber;
+import utils.kafka.RecordProcessor;
+import utils.kafka.SyncPoint;
 
 import java.time.Duration;
 import java.util.List;
@@ -28,7 +30,7 @@ import static tukano.impl.java.clients.Clients.BlobsClients;
 import static tukano.impl.java.clients.Clients.UsersClients;
 import static utils.DB.getOne;
 
-public class JavaShortsReplicaAction implements ExtendedShorts {
+public class JavaShortsReplicaAction implements ExtendedShorts, RecordProcessor {
 
     static final String TOPIC = "shorts";
     static final String KAFKA_BROKERS = "kafka:9092";
@@ -39,49 +41,36 @@ public class JavaShortsReplicaAction implements ExtendedShorts {
 
     AtomicLong counter = new AtomicLong( totalShortsInDatabase() );
     private final KafkaSubscriber receiver;
+    private final SyncPoint sync;
     private static Logger Log = Logger.getLogger(JavaShortsReplicaAction.class.getName());
 
     public JavaShortsReplicaAction() {
         this.receiver = KafkaSubscriber.createSubscriber(KAFKA_BROKERS, List.of(TOPIC), "earliest");
-        receiver.start(false, this::operation);
+        receiver.start(false, this);
+        this.sync = SyncPoint.getInstance();
     }
 
-    public void operation(ConsumerRecord<String, String> record) {
-        String msg = record.value();
+    @Override
+    public void onReceive(ConsumerRecord<String, String> r) {
+        String msg = r.value();
         String[] parts = msg.split("\\|");
         String operation = parts[0];
         switch (operation) {
-            case "createShort":
-                createShort(parts[1], parts[2]);
-                break;
-            case "deleteShort":
-                deleteShort(parts[1], parts[2]);
-                break;
-            case "getShort":
-                getShort(parts[1]);
-                break;
-            case "getShorts":
-                getShorts(parts[1]);
-                break;
-            case "follow":
-                follow(parts[1], parts[2], Boolean.parseBoolean(parts[3]), parts[4]);
-                break;
-            case "followers":
-                followers(parts[1], parts[2]);
-                break;
-            case "like":
-                like(parts[1], parts[2], Boolean.parseBoolean(parts[3]), parts[4]);
-                break;
-            case "likes":
-                likes(parts[1], parts[2]);
-                break;
-            case "getFeed":
-                getFeed(parts[1], parts[2]);
-                break;
-            case "deleteAllShorts":
-                deleteAllShorts(parts[1], parts[2], parts[3]);
-                break;
+            case "createShort" -> createShort(parts[1], parts[2]);
+            case "deleteShort" -> deleteShort(parts[1], parts[2]);
+            case "getShort" -> getShort(parts[1]);
+            case "getShorts" -> getShorts(parts[1]);
+            case "follow" -> follow(parts[1], parts[2], Boolean.parseBoolean(parts[3]), parts[4]);
+            case "followers" -> followers(parts[1], parts[2]);
+            case "like" -> like(parts[1], parts[2], Boolean.parseBoolean(parts[3]), parts[4]);
+            case "likes" -> likes(parts[1], parts[2]);
+            case "getFeed" -> getFeed(parts[1], parts[2]);
+            case "deleteAllShorts" -> deleteAllShorts(parts[1], parts[2], parts[3]);
         }
+
+        var version = r.offset();
+        var result = "result of " + r.value();
+        sync.setResult( version, result);
     }
 
     @Override
@@ -90,7 +79,9 @@ public class JavaShortsReplicaAction implements ExtendedShorts {
         var shortId = format("%s-%d", userId, counter.incrementAndGet());
         var shrt = new Short(shortId, userId, getLeastLoadedBlobServerURI(shortId));
 
-        return DB.insertOne(shrt);
+        var res  = DB.insertOne(shrt);
+
+        return res;
     }
 
     @Override

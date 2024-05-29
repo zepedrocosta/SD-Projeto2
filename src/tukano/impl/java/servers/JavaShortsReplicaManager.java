@@ -3,12 +3,14 @@ package tukano.impl.java.servers;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import tukano.api.Short;
 import tukano.api.User;
 import tukano.api.java.Result;
 import tukano.impl.api.java.ExtendedShorts;
 import utils.DB;
 import utils.kafka.KafkaPublisher;
+import utils.kafka.RecordProcessor;
 import utils.kafka.SyncPoint;
 
 import java.time.Duration;
@@ -18,9 +20,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static java.lang.String.format;
+import static tukano.api.java.Result.*;
 import static tukano.api.java.Result.ErrorCode.*;
-import static tukano.api.java.Result.error;
-import static tukano.api.java.Result.errorOrValue;
 import static tukano.impl.java.clients.Clients.BlobsClients;
 import static tukano.impl.java.clients.Clients.UsersClients;
 import static utils.DB.getOne;
@@ -39,28 +40,31 @@ public class JavaShortsReplicaManager implements ExtendedShorts {
 
     public JavaShortsReplicaManager() {
         this.publisher = KafkaPublisher.createPublisher(KAFKA_BROKERS);
-        this.sync = new SyncPoint<>();
+        this.sync = SyncPoint.getInstance();
         this.impl = new JavaShortsReplicaAction();
     }
+
+
 
     @Override
     public Result<Short> createShort(String userId, String password) {
 
         var precondition = preCreateShort(userId, password);
 
-        //Call JavaShortsPrecondition
+        // Call JavaShortsPrecondition
+        // Publish to Kafka to execute
+        // Wait for Sync
         if (precondition.isOK()) {
             var version = publisher.publish(TOPIC, "createShort|" + userId + "|" + password);
+            var result = sync.waitForResult(version);
         }
-        //Publish to Kafka to execute
-        //Wait for Sync
 
-        return null;
+        return ok();
     }
 
-    public Result<User> preCreateShort(String userId, String password) {
+    private Result<User> preCreateShort(String userId, String password) {
         try {
-            return usersCache.get( new JavaShorts.Credentials(userId, password));
+            return usersCache.get(new JavaShorts.Credentials(userId, password));
         } catch (Exception x) {
             x.printStackTrace();
             return Result.error(INTERNAL_ERROR);
@@ -138,22 +142,22 @@ public class JavaShortsReplicaManager implements ExtendedShorts {
 
                     var query = format("SELECT count(*) FROM Likes l WHERE l.shortId = '%s'", shortId);
                     var likes = DB.sql(query, Long.class);
-                    return errorOrValue( getOne(shortId, Short.class), shrt -> shrt.copyWith( likes.get(0) ) );
+                    return errorOrValue(getOne(shortId, Short.class), shrt -> shrt.copyWith(likes.get(0)));
                 }
             });
 
-    protected final LoadingCache<String, Map<String,Long>> blobCountCache = CacheBuilder.newBuilder()
+    protected final LoadingCache<String, Map<String, Long>> blobCountCache = CacheBuilder.newBuilder()
             .expireAfterWrite(Duration.ofMillis(BLOBS_USAGE_CACHE_EXPIRATION)).removalListener((e) -> {
             }).build(new CacheLoader<>() {
                 @Override
-                public Map<String,Long> load(String __) throws Exception {
+                public Map<String, Long> load(String __) throws Exception {
                     final var QUERY = "SELECT REGEXP_SUBSTRING(s.blobUrl, '^(\\w+:\\/\\/)?([^\\/]+)\\/([^\\/]+)') AS baseURI, count('*') AS usage From Short s GROUP BY baseURI";
                     var hits = DB.sql(QUERY, JavaShorts.BlobServerCount.class);
 
-                    var candidates = hits.stream().collect( Collectors.toMap( JavaShorts.BlobServerCount::baseURI, JavaShorts.BlobServerCount::count));
+                    var candidates = hits.stream().collect(Collectors.toMap(JavaShorts.BlobServerCount::baseURI, JavaShorts.BlobServerCount::count));
 
-                    for( var uri : BlobsClients.all() )
-                        candidates.putIfAbsent( uri.toString(), 0L);
+                    for (var uri : BlobsClients.all())
+                        candidates.putIfAbsent(uri.toString(), 0L);
 
                     return candidates;
 
