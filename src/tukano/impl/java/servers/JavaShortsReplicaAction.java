@@ -1,5 +1,8 @@
 package tukano.impl.java.servers;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -9,6 +12,7 @@ import tukano.api.User;
 import tukano.api.java.Blobs;
 import tukano.api.java.Result;
 import tukano.impl.api.java.ExtendedShorts;
+import tukano.impl.discovery.Discovery;
 import utils.DB;
 import utils.kafka.KafkaSubscriber;
 import utils.kafka.RecordProcessor;
@@ -17,114 +21,86 @@ import utils.kafka.SyncPoint;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import static java.lang.String.format;
-import static tukano.api.java.Result.ErrorCode.BAD_REQUEST;
-import static tukano.api.java.Result.ErrorCode.TIMEOUT;
-import static tukano.api.java.Result.error;
-import static tukano.api.java.Result.errorOrValue;
+import static tukano.api.java.Result.*;
+import static tukano.api.java.Result.ErrorCode.*;
 import static tukano.impl.java.clients.Clients.BlobsClients;
 import static tukano.impl.java.clients.Clients.UsersClients;
 import static utils.DB.getOne;
 
-public class JavaShortsReplicaAction implements ExtendedShorts, RecordProcessor {
+public class JavaShortsReplicaAction {
 
-    static final String TOPIC = "shorts";
-    static final String KAFKA_BROKERS = "kafka:9092";
     private static final long USER_CACHE_EXPIRATION = 3000;
     private static final long SHORTS_CACHE_EXPIRATION = 3000;
     private static final long BLOBS_USAGE_CACHE_EXPIRATION = 10000;
     private static final String BLOB_COUNT = "*";
 
-    AtomicLong counter = new AtomicLong( totalShortsInDatabase() );
-    private final KafkaSubscriber receiver;
-    private final SyncPoint sync;
+
     private static Logger Log = Logger.getLogger(JavaShortsReplicaAction.class.getName());
+    private final ObjectMapper mapper = new ObjectMapper();
 
-    public JavaShortsReplicaAction() {
-        this.receiver = KafkaSubscriber.createSubscriber(KAFKA_BROKERS, List.of(TOPIC), "earliest");
-        receiver.start(false, this);
-        this.sync = SyncPoint.getInstance();
-    }
 
-    @Override
-    public void onReceive(ConsumerRecord<String, String> r) {
-        String msg = r.value();
-        String[] parts = msg.split("\\|");
-        String operation = parts[0];
-        switch (operation) {
-            case "createShort" -> createShort(parts[1], parts[2]);
-            case "deleteShort" -> deleteShort(parts[1], parts[2]);
-            case "getShort" -> getShort(parts[1]);
-            case "getShorts" -> getShorts(parts[1]);
-            case "follow" -> follow(parts[1], parts[2], Boolean.parseBoolean(parts[3]), parts[4]);
-            case "followers" -> followers(parts[1], parts[2]);
-            case "like" -> like(parts[1], parts[2], Boolean.parseBoolean(parts[3]), parts[4]);
-            case "likes" -> likes(parts[1], parts[2]);
-            case "getFeed" -> getFeed(parts[1], parts[2]);
-            case "deleteAllShorts" -> deleteAllShorts(parts[1], parts[2], parts[3]);
+    public Result<String> createShort(Short value) {
+        Result<Short> shrt = DB.insertOne(value);
+
+        try {
+            if (shrt.isOK())
+                return ok(mapper.writeValueAsString(shrt.value()));
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
-        var version = r.offset();
-        var result = "result of " + r.value();
-        sync.setResult( version, result);
+        return error(shrt.error());
     }
 
-    @Override
-    public Result<Short> createShort(String userId, String password) {
-        Log.info(() -> format("createShort : userId = %s, pwd = %s\n", userId, password));
-        var shortId = format("%s-%d", userId, counter.incrementAndGet());
-        var shrt = new Short(shortId, userId, getLeastLoadedBlobServerURI(shortId));
+    public Result<String> getShort(String shortId) {
+        Log.info(() -> format("getShort : shortId = %s\n", shortId));
 
-        var res  = DB.insertOne(shrt);
+        var res = shortFromCache(shortId);
 
-        return res;
+        if (res.isOK())
+            try {
+                return ok(mapper.writeValueAsString(res.value()));
+            } catch (JsonProcessingException e) {
+                e.printStackTrace();
+            }
+
+        return error(res.error());
     }
 
-    @Override
-    public Result<Void> deleteShort(String shortId, String password) {
-        return null;
-    }
-
-    @Override
-    public Result<Short> getShort(String shortId) {
-        return null;
-    }
-
-    @Override
     public Result<List<String>> getShorts(String userId) {
         return null;
     }
 
-    @Override
+    public Result<Void> deleteShort(String shortId, String password) {
+        return null;
+    }
+
     public Result<Void> follow(String userId1, String userId2, boolean isFollowing, String password) {
         return null;
     }
 
-    @Override
     public Result<List<String>> followers(String userId, String password) {
         return null;
     }
 
-    @Override
     public Result<Void> like(String shortId, String userId, boolean isLiked, String password) {
         return null;
     }
 
-    @Override
     public Result<List<String>> likes(String shortId, String password) {
         return null;
     }
 
-    @Override
     public Result<List<String>> getFeed(String userId, String password) {
         return null;
     }
 
-    @Override
     public Result<Void> deleteAllShorts(String userId, String password, String token) {
         return null;
     }
@@ -228,6 +204,37 @@ public class JavaShortsReplicaAction implements ExtendedShorts, RecordProcessor 
     private long totalShortsInDatabase() {
         var hits = DB.sql("SELECT count('*') FROM Short", Long.class);
         return 1L + (hits.isEmpty() ? 0L : hits.get(0));
+    }
+
+    private String getBlobsUrls(String shortId) {
+        var blobsURLs = Discovery.getInstance().knownUrisOf(Blobs.NAME, 1);
+        StringBuilder blobUrl = new StringBuilder(format("%s/%s/%s", blobsURLs[0], Blobs.NAME, shortId));
+
+        for (int i = 1; i < blobsURLs.length; i++)
+            blobUrl.append("|").append(format("%s/%s/%s", blobsURLs[i], Blobs.NAME, shortId));
+
+        return blobUrl.toString();
+    }
+
+    protected Result<Short> shortFromCache(String shortId) {
+        try {
+            var res = shortsCache.get(shortId);
+            var newBlobUrl = getBlobsUrls(shortId);
+
+            if (res.isOK())
+                if (!res.value().getBlobUrl().equals(newBlobUrl)) {
+                    shortsCache.invalidate(shortId);
+                    var shrt = res.value();
+                    shrt.setBlobUrl(newBlobUrl);
+                    DB.updateOne(shrt);
+                    return ok(shrt);
+                }
+
+            return shortsCache.get(shortId);
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+            return error(INTERNAL_ERROR);
+        }
     }
 
 
