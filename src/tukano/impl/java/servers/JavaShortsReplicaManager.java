@@ -12,6 +12,7 @@ import tukano.api.java.Result;
 import tukano.impl.api.java.ExtendedShorts;
 import tukano.impl.java.servers.data.JavaShortsReplicaPre;
 import utils.DB;
+import utils.Token;
 import utils.kafka.KafkaPublisher;
 import utils.kafka.KafkaSubscriber;
 import utils.kafka.RecordProcessor;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 import static tukano.api.java.Result.*;
+import static tukano.api.java.Result.ErrorCode.FORBIDDEN;
 import static tukano.impl.java.clients.Clients.BlobsClients;
 import static utils.DB.getOne;
 
@@ -64,14 +66,14 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
             switch (operation) {
                 case "createShort" -> result = implAction.createShort(mapper.readValue(parts[1], Short.class));
                 case "getShort" -> result = implAction.getShort(parts[1]);
-                case "deleteShort" -> implAction.deleteShort(mapper.readValue(parts[1], Short.class));
+                case "deleteShort" -> result = implAction.deleteShort(mapper.readValue(parts[1], Short.class));
                 case "getShorts" -> result = implAction.getShorts(parts[1]);
                 case "follow" -> result = implAction.follow(parts[1], parts[2], Boolean.parseBoolean(parts[3]));
-                /*case "followers" -> result = impl.followers(parts[1], parts[2]);
-                case "like" -> result = impl.like(parts[1], parts[2], Boolean.parseBoolean(parts[3]), parts[4]);
-                case "likes" -> result = impl.likes(parts[1], parts[2]);
-                case "getFeed" -> result = impl.getFeed(parts[1], parts[2]);
-                case "deleteAllShorts" -> result = impl.deleteAllShorts(parts[1], parts[2], parts[3]);*/
+                case "followers" -> result = implAction.followers(parts[1]);
+                case "like" -> result = implAction.like(parts[1], parts[2], Boolean.parseBoolean(parts[3]), parts[4]);
+                case "likes" -> result = implAction.likes(parts[1]);
+                case "getFeed" -> result = implAction.getFeed(parts[1]);
+                case "deleteAllShorts" -> result = implAction.deleteAllShorts(parts[1], parts[2]);
             }
 
             var version = r.offset();
@@ -88,7 +90,6 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
 
     @Override
     public Result<Short> createShort(String userId, String password) {
-
         var precondition = implPre.preVerifyUser(userId, password);
         var shortId = format("%s-%d", userId, counter.incrementAndGet());
         var shrt = new Short(shortId, userId, getLeastLoadedBlobServerURI(shortId));
@@ -148,13 +149,16 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
 
         try {
             var version = publisher.publish(TOPIC, "deleteShort$" + mapper.writeValueAsString(shrt));
-            sync.waitForResult(version);
-            return ok();
+            var result = sync.waitForResult(version);
+            try {
+                return error(mapper.readValue(result, ErrorCode.class));
+            } catch (Exception ignored) {
+            }
         } catch (JsonProcessingException e) {
             e.printStackTrace();
         }
 
-        return error(ErrorCode.INTERNAL_ERROR);
+        return ok();
     }
 
     @Override
@@ -190,10 +194,10 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
             return error(preconditionUser2.error());
 
         var version = publisher.publish(TOPIC, "follow$" + userId1 + "$" + userId2 + "$" + isFollowing);
-        var response = sync.waitForResult(version);
+        var result = sync.waitForResult(version);
 
         try {
-            return error(mapper.readValue(response, ErrorCode.class));
+            return error(mapper.readValue(result, ErrorCode.class));
         } catch (Exception ignored) {
         }
 
@@ -201,28 +205,112 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Result<List<String>> followers(String userId, String password) {
-        return null;
+        var preconditionUser = implPre.preVerifyUser(userId, password);
+        if (!preconditionUser.isOK())
+            return error(preconditionUser.error());
+
+        var version = publisher.publish(TOPIC, "followers$" + userId + "$" + password);
+        var result = sync.waitForResult(version);
+        try {
+            return ok(mapper.readValue(result, List.class));
+        } catch (JsonProcessingException e) {
+            try {
+                return error(mapper.readValue(result, ErrorCode.class));
+            } catch (JsonProcessingException ex) {
+                ex.printStackTrace();
+            }
+        }
+
+        return error(ErrorCode.INTERNAL_ERROR);
     }
 
     @Override
     public Result<Void> like(String shortId, String userId, boolean isLiked, String password) {
-        return null;
+        var preconditionUser = implPre.preVerifyUser(userId, password);
+        if (!preconditionUser.isOK())
+            return error(preconditionUser.error());
+
+        var res = getShort(shortId);
+        if (!res.isOK())
+            return error(res.error());
+
+        var version = publisher.publish(TOPIC, "like$" + shortId + "$" + userId + "$" + isLiked + "$" + res.value().getOwnerId());
+        var result = sync.waitForResult(version);
+
+        try {
+            return error(mapper.readValue(result, ErrorCode.class));
+        } catch (Exception ignored) {
+        }
+
+        return ok();
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Result<List<String>> likes(String shortId, String password) {
-        return null;
+        var res = getShort(shortId);
+        if (!res.isOK())
+            return error(res.error());
+
+        var shrt = res.value();
+
+        var preconditionUser = implPre.preVerifyUser(shrt.getOwnerId(), password);
+        if (!preconditionUser.isOK())
+            return error(preconditionUser.error());
+
+        var version = publisher.publish(TOPIC, "likes$" + shortId);
+        var result = sync.waitForResult(version);
+        try {
+            return ok(mapper.readValue(result, List.class));
+        } catch (JsonProcessingException e) {
+            try {
+                return error(mapper.readValue(result, ErrorCode.class));
+            } catch (JsonProcessingException ex) {
+                ex.printStackTrace();
+            }
+        }
+
+        return error(ErrorCode.INTERNAL_ERROR);
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Result<List<String>> getFeed(String userId, String password) {
-        return null;
+        var preconditionUser = implPre.preVerifyUser(userId, password);
+        if (!preconditionUser.isOK())
+            return error(preconditionUser.error());
+
+        var version = publisher.publish(TOPIC, "getFeed$" + userId);
+        var result = sync.waitForResult(version);
+        try {
+            return ok(mapper.readValue(result, List.class));
+        } catch (JsonProcessingException e) {
+            try {
+                return error(mapper.readValue(result, ErrorCode.class));
+            } catch (JsonProcessingException ex) {
+                ex.printStackTrace();
+            }
+        }
+
+        return error(ErrorCode.INTERNAL_ERROR);
     }
 
     @Override
     public Result<Void> deleteAllShorts(String userId, String password, String token) {
-        return null;
+        if( !Token.matches( token ) )
+            return error(FORBIDDEN);
+
+        var version = publisher.publish(TOPIC, "deleteAllShorts$" + userId + "$" + password);
+        var result = sync.waitForResult(version);
+
+        try {
+            return error(mapper.readValue(result, ErrorCode.class));
+        } catch (Exception ignored) {
+        }
+
+        return ok();
     }
 
     protected final LoadingCache<String, Result<Short>> shortsCache = CacheBuilder.newBuilder()

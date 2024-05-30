@@ -112,24 +112,79 @@ public class JavaShortsReplicaAction {
         return error(res.error());
     }
 
-    public Result<List<String>> followers(String userId, String password) {
-        return null;
+    public Result<String> followers(String userId) {
+        var query = format("SELECT f.follower FROM Following f WHERE f.followee = '%s'", userId);
+        try {
+            return ok(mapper.writeValueAsString(DB.sql( query, String.class)));
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+        return error(INTERNAL_ERROR);
     }
 
-    public Result<Void> like(String shortId, String userId, boolean isLiked, String password) {
-        return null;
+    public Result<String> like(String shortId, String userId, boolean isLiked, String ownerId) {
+        shortsCache.invalidate( shortId );
+
+        var l = new Likes(userId, shortId, ownerId);
+        Result<Likes> res = isLiked ? DB.insertOne(l) : DB.deleteOne(l);
+
+        if (res.isOK())
+            return ok("");
+
+        return error(res.error());
     }
 
-    public Result<List<String>> likes(String shortId, String password) {
-        return null;
+    public Result<String> likes(String shortId) {
+        var query = format("SELECT l.userId FROM Likes l WHERE l.shortId = '%s'", shortId);
+        try {
+            return ok(mapper.writeValueAsString(DB.sql( query, String.class)));
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+        return error(INTERNAL_ERROR);
     }
 
-    public Result<List<String>> getFeed(String userId, String password) {
-        return null;
+    public Result<String> getFeed(String userId) {
+        final var QUERY_FMT = """
+				SELECT s.shortId, s.timestamp FROM Short s WHERE	s.ownerId = '%s'				
+				UNION			
+				SELECT s.shortId, s.timestamp FROM Short s, Following f 
+					WHERE 
+						f.followee = s.ownerId AND f.follower = '%s' 
+				ORDER BY s.timestamp DESC""";
+
+        try {
+            return ok(mapper.writeValueAsString(DB.sql( format(QUERY_FMT, userId, userId), String.class)));
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+        return error(INTERNAL_ERROR);
     }
 
-    public Result<Void> deleteAllShorts(String userId, String password, String token) {
-        return null;
+    public Result<String> deleteAllShorts(String userId, String password) {
+        return DB.transaction( (hibernate) -> {
+
+            usersCache.invalidate( new JavaShorts.Credentials(userId, password) );
+
+            //delete shorts
+            var query1 = format("SELECT * FROM Short s WHERE s.ownerId = '%s'", userId);
+            hibernate.createNativeQuery(query1, Short.class).list().forEach( s -> {
+                shortsCache.invalidate( s.getShortId() );
+                hibernate.remove(s);
+            });
+
+            //delete follows
+            var query2 = format("SELECT * FROM Following f WHERE f.follower = '%s' OR f.followee = '%s'", userId, userId);
+            hibernate.createNativeQuery(query2, Following.class).list().forEach( hibernate::remove );
+
+            //delete likes
+            var query3 = format("SELECT * FROM Likes l WHERE l.ownerId = '%s' OR l.userId = '%s'", userId, userId);
+            hibernate.createNativeQuery(query3, Likes.class).list().forEach( l -> {
+                shortsCache.invalidate( l.getShortId() );
+                hibernate.remove(l);
+            });
+
+        });
     }
 
     static record Credentials(String userId, String pwd) {
