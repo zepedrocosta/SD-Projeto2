@@ -1,30 +1,23 @@
 package tukano.impl.java.servers;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import tukano.api.Short;
 import tukano.api.User;
 import tukano.api.java.Blobs;
 import tukano.api.java.Result;
-import tukano.impl.api.java.ExtendedShorts;
 import tukano.impl.discovery.Discovery;
 import tukano.impl.java.servers.data.Following;
 import tukano.impl.java.servers.data.Likes;
 import utils.DB;
 import utils.Token;
-import utils.kafka.KafkaSubscriber;
-import utils.kafka.RecordProcessor;
-import utils.kafka.SyncPoint;
 
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
@@ -48,6 +41,8 @@ public class JavaShortsReplicaAction {
 
 
     public Result<String> createShort(Short value) {
+        Log.info(() -> format("createShort : userId = %s\n", value.getOwnerId()));
+
         Result<Short> shrt = DB.insertOne(value);
 
         try {
@@ -93,6 +88,8 @@ public class JavaShortsReplicaAction {
     }
 
     public Result<String> getShorts(String userId) {
+        Log.info(() -> format("getShorts : userId = %s\n", userId));
+
         var query = format("SELECT s.shortId FROM Short s WHERE s.ownerId = '%s'", userId);
         try {
             return ok(mapper.writeValueAsString(DB.sql( query, String.class)));
@@ -103,6 +100,8 @@ public class JavaShortsReplicaAction {
     }
 
     public Result<String> follow(String userId1, String userId2, boolean isFollowing) {
+        Log.info(() -> format("follow : userId1 = %s, userId2 = %s, isFollowing = %s\n", userId1, userId2, isFollowing));
+
         var f = new Following(userId1, userId2);
         Result<Following> res = isFollowing ? DB.insertOne(f) : DB.deleteOne(f);
 
@@ -113,6 +112,8 @@ public class JavaShortsReplicaAction {
     }
 
     public Result<String> followers(String userId) {
+        Log.info(() -> format("followers : userId = %s\n", userId));
+
         var query = format("SELECT f.follower FROM Following f WHERE f.followee = '%s'", userId);
         try {
             return ok(mapper.writeValueAsString(DB.sql( query, String.class)));
@@ -123,6 +124,8 @@ public class JavaShortsReplicaAction {
     }
 
     public Result<String> like(String shortId, String userId, boolean isLiked, String ownerId) {
+        Log.info(() -> format("like : shortId = %s, userId = %s, isLiked = %s\n", shortId, userId, isLiked));
+
         shortsCache.invalidate( shortId );
 
         var l = new Likes(userId, shortId, ownerId);
@@ -145,6 +148,8 @@ public class JavaShortsReplicaAction {
     }
 
     public Result<String> getFeed(String userId) {
+        Log.info(() -> format("getFeed : userId = %s\n", userId));
+
         final var QUERY_FMT = """
 				SELECT s.shortId, s.timestamp FROM Short s WHERE	s.ownerId = '%s'				
 				UNION			
@@ -162,9 +167,11 @@ public class JavaShortsReplicaAction {
     }
 
     public Result<String> deleteAllShorts(String userId, String password) {
+        Log.info(() -> format("deleteAllShorts : userId = %s, password = %s\n", userId, password));
+
         return DB.transaction( (hibernate) -> {
 
-            usersCache.invalidate( new JavaShorts.Credentials(userId, password) );
+            usersCache.invalidate( new Credentials(userId, password) );
 
             //delete shorts
             var query1 = format("SELECT * FROM Short s WHERE s.ownerId = '%s'", userId);
@@ -188,22 +195,25 @@ public class JavaShortsReplicaAction {
     }
 
     static record Credentials(String userId, String pwd) {
-        static JavaShorts.Credentials from(String userId, String pwd) {
-            return new JavaShorts.Credentials(userId, pwd);
+        static Credentials from(String userId, String pwd) {
+            return new Credentials(userId, pwd);
         }
     }
 
-    protected final LoadingCache<JavaShorts.Credentials, Result<User>> usersCache = CacheBuilder.newBuilder()
+    protected final LoadingCache<Credentials, Result<User>> usersCache = CacheBuilder.newBuilder()
             .expireAfterWrite(Duration.ofMillis(USER_CACHE_EXPIRATION)).removalListener((e) -> {
             }).build(new CacheLoader<>() {
                 @Override
-                public Result<User> load(JavaShorts.Credentials u) throws Exception {
+                public Result<User> load(Credentials u) throws Exception {
                     var res = UsersClients.get().getUser(u.userId(), u.pwd());
                     if (res.error() == TIMEOUT)
                         return error(BAD_REQUEST);
                     return res;
                 }
             });
+
+    static record BlobServerCount(String baseURI, Long count) {
+    }
 
     protected final LoadingCache<String, Result<Short>> shortsCache = CacheBuilder.newBuilder()
             .expireAfterWrite(Duration.ofMillis(SHORTS_CACHE_EXPIRATION)).removalListener((e) -> {
@@ -223,9 +233,9 @@ public class JavaShortsReplicaAction {
                 @Override
                 public Map<String, Long> load(String __) throws Exception {
                     final var QUERY = "SELECT REGEXP_SUBSTRING(s.blobUrl, '^(\\w+:\\/\\/)?([^\\/]+)\\/([^\\/]+)') AS baseURI, count('*') AS usage From Short s GROUP BY baseURI";
-                    var hits = DB.sql(QUERY, JavaShorts.BlobServerCount.class);
+                    var hits = DB.sql(QUERY, BlobServerCount.class);
 
-                    var candidates = hits.stream().collect(Collectors.toMap(JavaShorts.BlobServerCount::baseURI, JavaShorts.BlobServerCount::count));
+                    var candidates = hits.stream().collect(Collectors.toMap(BlobServerCount::baseURI, BlobServerCount::count));
 
                     for (var uri : BlobsClients.all())
                         candidates.putIfAbsent(uri.toString(), 0L);

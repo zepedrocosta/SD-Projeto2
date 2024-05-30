@@ -22,22 +22,22 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 import static tukano.api.java.Result.*;
 import static tukano.api.java.Result.ErrorCode.FORBIDDEN;
 import static tukano.impl.java.clients.Clients.BlobsClients;
-import static utils.DB.getOne;
 
 public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor {
 
-    private static final long SHORTS_CACHE_EXPIRATION = 3000;
     private static final long BLOBS_USAGE_CACHE_EXPIRATION = 10000;
     private static final String BLOB_COUNT = "*";
     private static final String KAFKA_BROKERS = "kafka:9092";
     private static final String TOPIC = "shorts";
 
+    private static Logger Log = Logger.getLogger(JavaShortsReplicaManager.class.getName());
     private final KafkaPublisher publisher;
     private final KafkaSubscriber receiver;
     private final JavaShortsReplicaAction implAction;
@@ -90,6 +90,8 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
 
     @Override
     public Result<Short> createShort(String userId, String password) {
+        Log.info(() -> format("createShort : userId = %s, pwd = %s\n", userId, password));
+
         var precondition = implPre.preVerifyUser(userId, password);
         var shortId = format("%s-%d", userId, counter.incrementAndGet());
         var shrt = new Short(shortId, userId, getLeastLoadedBlobServerURI(shortId));
@@ -115,6 +117,8 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
 
     @Override
     public Result<Short> getShort(String shortId) {
+        Log.info(() -> format("getShort : shortId = %s\n", shortId));
+
         var precondition = implPre.preVerifyShortId(shortId);
 
         if (precondition) {
@@ -137,6 +141,8 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
 
     @Override
     public Result<Void> deleteShort(String shortId, String password) {
+        Log.info(() -> format("deleteShort : shortId = %s, pwd = %s\n", shortId, password));
+
         var res = getShort(shortId);
         if (!res.isOK())
             return error(res.error());
@@ -164,6 +170,8 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
     @Override
     @SuppressWarnings("unchecked")
     public Result<List<String>> getShorts(String userId) {
+        Log.info(() -> format("getShorts : userId = %s\n", userId));
+
         var preconditionUser = implPre.preVerifyUser(userId);
         if (!preconditionUser.isOK())
             return error(preconditionUser.error());
@@ -185,6 +193,9 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
 
     @Override
     public Result<Void> follow(String userId1, String userId2, boolean isFollowing, String password) {
+        Log.info(() -> format("follow : userId1 = %s, userId2 = %s, isFollowing = %s, pwd = %s\n", userId1, userId2, isFollowing, password));
+
+
         var preconditionUser1 = implPre.preVerifyUser(userId1, password);
         if (!preconditionUser1.isOK())
             return error(preconditionUser1.error());
@@ -207,6 +218,8 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
     @Override
     @SuppressWarnings("unchecked")
     public Result<List<String>> followers(String userId, String password) {
+        Log.info(() -> format("followers : userId = %s, pwd = %s\n", userId, password));
+
         var preconditionUser = implPre.preVerifyUser(userId, password);
         if (!preconditionUser.isOK())
             return error(preconditionUser.error());
@@ -228,6 +241,8 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
 
     @Override
     public Result<Void> like(String shortId, String userId, boolean isLiked, String password) {
+        Log.info(() -> format("like : shortId = %s, userId = %s, isLiked = %s, pwd = %s\n", shortId, userId, isLiked, password));
+
         var preconditionUser = implPre.preVerifyUser(userId, password);
         if (!preconditionUser.isOK())
             return error(preconditionUser.error());
@@ -250,6 +265,8 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
     @Override
     @SuppressWarnings("unchecked")
     public Result<List<String>> likes(String shortId, String password) {
+        Log.info(() -> format("likes : shortId = %s, pwd = %s\n", shortId, password));
+
         var res = getShort(shortId);
         if (!res.isOK())
             return error(res.error());
@@ -278,6 +295,8 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
     @Override
     @SuppressWarnings("unchecked")
     public Result<List<String>> getFeed(String userId, String password) {
+        Log.info(() -> format("getFeed : userId = %s, pwd = %s\n", userId, password));
+
         var preconditionUser = implPre.preVerifyUser(userId, password);
         if (!preconditionUser.isOK())
             return error(preconditionUser.error());
@@ -299,6 +318,8 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
 
     @Override
     public Result<Void> deleteAllShorts(String userId, String password, String token) {
+        Log.info(() -> format("deleteAllShorts : userId = %s, password = %s, token = %s\n", userId, password, token));
+
         if( !Token.matches( token ) )
             return error(FORBIDDEN);
 
@@ -312,18 +333,6 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
 
         return ok();
     }
-
-    protected final LoadingCache<String, Result<Short>> shortsCache = CacheBuilder.newBuilder()
-            .expireAfterWrite(Duration.ofMillis(SHORTS_CACHE_EXPIRATION)).removalListener((e) -> {
-            }).build(new CacheLoader<>() {
-                @Override
-                public Result<Short> load(String shortId) throws Exception {
-
-                    var query = format("SELECT count(*) FROM Likes l WHERE l.shortId = '%s'", shortId);
-                    var likes = DB.sql(query, Long.class);
-                    return errorOrValue(getOne(shortId, Short.class), shrt -> shrt.copyWith(likes.get(0)));
-                }
-            });
 
     static record BlobServerCount(String baseURI, Long count) {
     }
