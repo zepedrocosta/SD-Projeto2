@@ -7,10 +7,10 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import tukano.api.Short;
-import tukano.api.User;
 import tukano.api.java.Blobs;
 import tukano.api.java.Result;
 import tukano.impl.api.java.ExtendedShorts;
+import tukano.impl.java.servers.data.JavaShortsReplicaPre;
 import utils.DB;
 import utils.kafka.KafkaPublisher;
 import utils.kafka.KafkaSubscriber;
@@ -20,20 +20,16 @@ import utils.kafka.SyncPoint;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 import static tukano.api.java.Result.*;
-import static tukano.api.java.Result.ErrorCode.*;
 import static tukano.impl.java.clients.Clients.BlobsClients;
-import static tukano.impl.java.clients.Clients.UsersClients;
 import static utils.DB.getOne;
 
 public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor {
 
-    private static final long USER_CACHE_EXPIRATION = 3000;
     private static final long SHORTS_CACHE_EXPIRATION = 3000;
     private static final long BLOBS_USAGE_CACHE_EXPIRATION = 10000;
     private static final String BLOB_COUNT = "*";
@@ -42,9 +38,9 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
 
     private final KafkaPublisher publisher;
     private final KafkaSubscriber receiver;
-    private final JavaShortsReplicaAction impl;
+    private final JavaShortsReplicaAction implAction;
+    private final JavaShortsReplicaPre implPre;
     private final ObjectMapper mapper;
-
     AtomicLong counter = new AtomicLong(totalShortsInDatabase());
     final SyncPoint<String> sync;
 
@@ -52,7 +48,8 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
         this.publisher = KafkaPublisher.createPublisher(KAFKA_BROKERS);
         this.receiver = KafkaSubscriber.createSubscriber(KAFKA_BROKERS, List.of(TOPIC), "earliest");
         this.sync = SyncPoint.getInstance();
-        this.impl = new JavaShortsReplicaAction();
+        this.implAction = new JavaShortsReplicaAction();
+        this.implPre = new JavaShortsReplicaPre();
         this.mapper = new ObjectMapper();
         receiver.start(false, this);
     }
@@ -62,15 +59,15 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
         String msg = r.value();
         String[] parts = msg.split("\\$");
         String operation = parts[0];
-        Result<String> result = null;
+        Result<String> result = ok("");
         try {
             switch (operation) {
-                case "create" -> result = impl.createShort(mapper.readValue(parts[1], Short.class));
-                case "getShort" -> result = impl.getShort(parts[1]);
-                /*case "getShorts" -> result = impl.getShorts(parts[1]);
-                case "deleteShort" -> result = impl.deleteShort(parts[1], parts[2]);
-                case "follow" -> result = impl.follow(parts[1], parts[2], Boolean.parseBoolean(parts[3]), parts[4]);
-                case "followers" -> result = impl.followers(parts[1], parts[2]);
+                case "createShort" -> result = implAction.createShort(mapper.readValue(parts[1], Short.class));
+                case "getShort" -> result = implAction.getShort(parts[1]);
+                case "deleteShort" -> implAction.deleteShort(mapper.readValue(parts[1], Short.class));
+                case "getShorts" -> result = implAction.getShorts(parts[1]);
+                case "follow" -> result = implAction.follow(parts[1], parts[2], Boolean.parseBoolean(parts[3]));
+                /*case "followers" -> result = impl.followers(parts[1], parts[2]);
                 case "like" -> result = impl.like(parts[1], parts[2], Boolean.parseBoolean(parts[3]), parts[4]);
                 case "likes" -> result = impl.likes(parts[1], parts[2]);
                 case "getFeed" -> result = impl.getFeed(parts[1], parts[2]);
@@ -92,71 +89,115 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
     @Override
     public Result<Short> createShort(String userId, String password) {
 
-        var precondition = preCreateShort(userId, password);
+        var precondition = implPre.preVerifyUser(userId, password);
         var shortId = format("%s-%d", userId, counter.incrementAndGet());
         var shrt = new Short(shortId, userId, getLeastLoadedBlobServerURI(shortId));
+        String result = "";
 
-        if (precondition.isOK()) {
+        if (!precondition.isOK())
+            return error(precondition.error());
+
+        try {
+            var version = publisher.publish(TOPIC, "createShort$" + mapper.writeValueAsString(shrt));
+            result = sync.waitForResult(version);
+            return ok(mapper.readValue(result, Short.class));
+        } catch (JsonProcessingException e) {
             try {
-                var version = publisher.publish(TOPIC, "create$" + mapper.writeValueAsString(shrt));
-                var result = sync.waitForResult(version);
-                shrt = mapper.readValue(result, Short.class);
-            } catch (JsonProcessingException e) {
-                e.printStackTrace();
+                return error(mapper.readValue(result, ErrorCode.class));
+            } catch (JsonProcessingException ex) {
+                ex.printStackTrace();
             }
         }
 
-        return ok(shrt);
-    }
-
-    private Result<User> preCreateShort(String userId, String password) {
-        try {
-            return usersCache.get(new JavaShorts.Credentials(userId, password));
-        } catch (Exception x) {
-            x.printStackTrace();
-            return Result.error(INTERNAL_ERROR);
-        }
+        return error(ErrorCode.INTERNAL_ERROR);
     }
 
     @Override
     public Result<Short> getShort(String shortId) {
-        var precondition = preGetShort(shortId);
-        Short shrt = null;
+        var precondition = implPre.preVerifyShortId(shortId);
 
         if (precondition) {
             var version = publisher.publish(TOPIC, "getShort$" + shortId);
             var result = sync.waitForResult(version);
             try {
-                shrt = mapper.readValue(result, Short.class);
+                var shrt = mapper.readValue(result, Short.class);
+                return ok(shrt);
             } catch (JsonProcessingException e) {
                 try {
                     return error(mapper.readValue(result, ErrorCode.class));
-                } catch(JsonProcessingException ex) {
+                } catch (JsonProcessingException ex) {
                     ex.printStackTrace();
                 }
             }
         }
 
-        return ok(shrt);
-    }
-
-    private boolean preGetShort(String shortId) {
-        return shortId != null;
-    }
-
-    @Override
-    public Result<List<String>> getShorts(String userId) {
-        return null;
+        return error(ErrorCode.BAD_REQUEST);
     }
 
     @Override
     public Result<Void> deleteShort(String shortId, String password) {
-        return null;
+        var res = getShort(shortId);
+        if (!res.isOK())
+            return error(res.error());
+
+        var shrt = res.value();
+
+        var preconditionUser = implPre.preVerifyUser(shrt.getOwnerId(), password);
+        if (!preconditionUser.isOK())
+            return error(preconditionUser.error());
+
+        try {
+            var version = publisher.publish(TOPIC, "deleteShort$" + mapper.writeValueAsString(shrt));
+            sync.waitForResult(version);
+            return ok();
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+
+        return error(ErrorCode.INTERNAL_ERROR);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Result<List<String>> getShorts(String userId) {
+        var preconditionUser = implPre.preVerifyUser(userId);
+        if (!preconditionUser.isOK())
+            return error(preconditionUser.error());
+
+        var version = publisher.publish(TOPIC, "getShorts$" + userId);
+        var result = sync.waitForResult(version);
+        try {
+            return ok(mapper.readValue(result, List.class));
+        } catch (JsonProcessingException e) {
+            try {
+                return error(mapper.readValue(result, ErrorCode.class));
+            } catch (JsonProcessingException ex) {
+                ex.printStackTrace();
+            }
+        }
+
+        return error(ErrorCode.INTERNAL_ERROR);
     }
 
     @Override
     public Result<Void> follow(String userId1, String userId2, boolean isFollowing, String password) {
-        return null;
+        var preconditionUser1 = implPre.preVerifyUser(userId1, password);
+        if (!preconditionUser1.isOK())
+            return error(preconditionUser1.error());
+
+        var preconditionUser2 = implPre.preVerifyUser(userId2);
+        if (!preconditionUser2.isOK())
+            return error(preconditionUser2.error());
+
+        var version = publisher.publish(TOPIC, "follow$" + userId1 + "$" + userId2 + "$" + isFollowing);
+        var response = sync.waitForResult(version);
+
+        try {
+            return error(mapper.readValue(response, ErrorCode.class));
+        } catch (Exception ignored) {
+        }
+
+        return ok();
     }
 
     @Override
@@ -184,24 +225,6 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
         return null;
     }
 
-    static record Credentials(String userId, String pwd) {
-        static JavaShorts.Credentials from(String userId, String pwd) {
-            return new JavaShorts.Credentials(userId, pwd);
-        }
-    }
-
-    protected final LoadingCache<JavaShorts.Credentials, Result<User>> usersCache = CacheBuilder.newBuilder()
-            .expireAfterWrite(Duration.ofMillis(USER_CACHE_EXPIRATION)).removalListener((e) -> {
-            }).build(new CacheLoader<>() {
-                @Override
-                public Result<User> load(JavaShorts.Credentials u) throws Exception {
-                    var res = UsersClients.get().getUser(u.userId(), u.pwd());
-                    if (res.error() == TIMEOUT)
-                        return error(BAD_REQUEST);
-                    return res;
-                }
-            });
-
     protected final LoadingCache<String, Result<Short>> shortsCache = CacheBuilder.newBuilder()
             .expireAfterWrite(Duration.ofMillis(SHORTS_CACHE_EXPIRATION)).removalListener((e) -> {
             }).build(new CacheLoader<>() {
@@ -214,15 +237,20 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
                 }
             });
 
+    static record BlobServerCount(String baseURI, Long count) {
+    }
+
+    ;
+
     protected final LoadingCache<String, Map<String, Long>> blobCountCache = CacheBuilder.newBuilder()
             .expireAfterWrite(Duration.ofMillis(BLOBS_USAGE_CACHE_EXPIRATION)).removalListener((e) -> {
             }).build(new CacheLoader<>() {
                 @Override
                 public Map<String, Long> load(String __) throws Exception {
                     final var QUERY = "SELECT REGEXP_SUBSTRING(s.blobUrl, '^(\\w+:\\/\\/)?([^\\/]+)\\/([^\\/]+)') AS baseURI, count('*') AS usage From Short s GROUP BY baseURI";
-                    var hits = DB.sql(QUERY, JavaShorts.BlobServerCount.class);
+                    var hits = DB.sql(QUERY, BlobServerCount.class);
 
-                    var candidates = hits.stream().collect(Collectors.toMap(JavaShorts.BlobServerCount::baseURI, JavaShorts.BlobServerCount::count));
+                    var candidates = hits.stream().collect(Collectors.toMap(BlobServerCount::baseURI, BlobServerCount::count));
 
                     for (var uri : BlobsClients.all())
                         candidates.putIfAbsent(uri.toString(), 0L);
@@ -265,15 +293,6 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
                 replica = uri;
             }
 
-            /*if (primary.equals(replica))
-                return primary;
-            else if (primary.isEmpty() && replica.isEmpty())
-                return "?";
-            else if (primary.isEmpty())
-                return format("%s/%s/%s", replica, Blobs.NAME, shortId);
-            else if (replica.isEmpty())
-                return format("%s/%s/%s", primary, Blobs.NAME, shortId);
-            else*/
             return format("%s/%s/%s", primary, Blobs.NAME, shortId) + "|" + format("%s/%s/%s", replica, Blobs.NAME, shortId);
 
         } catch (Exception x) {

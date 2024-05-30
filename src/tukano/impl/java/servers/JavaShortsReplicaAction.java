@@ -13,14 +13,16 @@ import tukano.api.java.Blobs;
 import tukano.api.java.Result;
 import tukano.impl.api.java.ExtendedShorts;
 import tukano.impl.discovery.Discovery;
+import tukano.impl.java.servers.data.Following;
+import tukano.impl.java.servers.data.Likes;
 import utils.DB;
+import utils.Token;
 import utils.kafka.KafkaSubscriber;
 import utils.kafka.RecordProcessor;
 import utils.kafka.SyncPoint;
 
 import java.time.Duration;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
@@ -73,16 +75,41 @@ public class JavaShortsReplicaAction {
         return error(res.error());
     }
 
-    public Result<List<String>> getShorts(String userId) {
-        return null;
+    public Result<String> deleteShort(Short shrt) {
+        var shortId = shrt.getShortId();
+        Log.info(() -> format("deleteShort : shortId = %s\n", shortId));
+
+        return DB.transaction(hibernate -> {
+
+            shortsCache.invalidate(shortId);
+            hibernate.remove(shrt);
+
+            var query = format("SELECT * FROM Likes l WHERE l.shortId = '%s'", shortId);
+            hibernate.createNativeQuery(query, Likes.class).list().forEach(hibernate::remove);
+
+            BlobsClients.get().delete(shrt.getBlobUrl(), Token.get());
+
+        });
     }
 
-    public Result<Void> deleteShort(String shortId, String password) {
-        return null;
+    public Result<String> getShorts(String userId) {
+        var query = format("SELECT s.shortId FROM Short s WHERE s.ownerId = '%s'", userId);
+        try {
+            return ok(mapper.writeValueAsString(DB.sql( query, String.class)));
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+        return error(INTERNAL_ERROR);
     }
 
-    public Result<Void> follow(String userId1, String userId2, boolean isFollowing, String password) {
-        return null;
+    public Result<String> follow(String userId1, String userId2, boolean isFollowing) {
+        var f = new Following(userId1, userId2);
+        Result<Following> res = isFollowing ? DB.insertOne(f) : DB.deleteOne(f);
+
+        if (res.isOK())
+            return ok("");
+
+        return error(res.error());
     }
 
     public Result<List<String>> followers(String userId, String password) {
@@ -131,22 +158,22 @@ public class JavaShortsReplicaAction {
 
                     var query = format("SELECT count(*) FROM Likes l WHERE l.shortId = '%s'", shortId);
                     var likes = DB.sql(query, Long.class);
-                    return errorOrValue( getOne(shortId, Short.class), shrt -> shrt.copyWith( likes.get(0) ) );
+                    return errorOrValue(getOne(shortId, Short.class), shrt -> shrt.copyWith(likes.get(0)));
                 }
             });
 
-    protected final LoadingCache<String, Map<String,Long>> blobCountCache = CacheBuilder.newBuilder()
+    protected final LoadingCache<String, Map<String, Long>> blobCountCache = CacheBuilder.newBuilder()
             .expireAfterWrite(Duration.ofMillis(BLOBS_USAGE_CACHE_EXPIRATION)).removalListener((e) -> {
             }).build(new CacheLoader<>() {
                 @Override
-                public Map<String,Long> load(String __) throws Exception {
+                public Map<String, Long> load(String __) throws Exception {
                     final var QUERY = "SELECT REGEXP_SUBSTRING(s.blobUrl, '^(\\w+:\\/\\/)?([^\\/]+)\\/([^\\/]+)') AS baseURI, count('*') AS usage From Short s GROUP BY baseURI";
                     var hits = DB.sql(QUERY, JavaShorts.BlobServerCount.class);
 
-                    var candidates = hits.stream().collect( Collectors.toMap( JavaShorts.BlobServerCount::baseURI, JavaShorts.BlobServerCount::count));
+                    var candidates = hits.stream().collect(Collectors.toMap(JavaShorts.BlobServerCount::baseURI, JavaShorts.BlobServerCount::count));
 
-                    for( var uri : BlobsClients.all() )
-                        candidates.putIfAbsent( uri.toString(), 0L);
+                    for (var uri : BlobsClients.all())
+                        candidates.putIfAbsent(uri.toString(), 0L);
 
                     return candidates;
 
@@ -154,11 +181,49 @@ public class JavaShortsReplicaAction {
             });
 
 
-    private String getLeastLoadedBlobServerURI(String shortId) {
+    protected Result<Short> shortFromCache(String shortId) {
+        try {
+            var res = shortsCache.get(shortId);
+            Short shrt;
+
+            if (res.isOK()) {
+                shrt = res.value();
+                var servers = Discovery.getInstance().knownUrisOf(Blobs.NAME, 1);
+                List<String> formattedURLs = new ArrayList<>();
+
+                for (var server : servers)
+                    formattedURLs.add(format("%s/%s/%s", server.toString(), Blobs.NAME, shortId));
+
+                var blobURLs = new LinkedList<>(Arrays.asList(shrt.getBlobUrl().split("\\|")));
+                Log.info("blobURL: " + shrt.getBlobUrl());
+                Log.info(shortId + ": " + blobURLs);
+
+                for (var url : blobURLs) {
+                    Log.info("url: " + url);
+                    if (!formattedURLs.contains(url)) {
+                        blobURLs.remove(url);
+                        var newUrl = getOtherUrl(url, shortId);
+                        if (newUrl.equals("?"))
+                            shrt.setBlobUrl(blobURLs.get(0));
+                        else
+                            shrt.setBlobUrl(blobURLs.get(0) + "|" + newUrl);
+                        DB.updateOne(shrt);
+                        break;
+                    }
+                }
+                return ok(shrt);
+            }
+
+            return res;
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+            return error(INTERNAL_ERROR);
+        }
+    }
+
+    private String getOtherUrl(String blobUrl, String shortId) {
         try {
             var servers = blobCountCache.get(BLOB_COUNT);
-            String primary = "";
-            String replica = "";
 
             var leastLoadedServer = servers.entrySet()
                     .stream()
@@ -166,76 +231,34 @@ public class JavaShortsReplicaAction {
                     .findFirst();
 
             if (leastLoadedServer.isPresent()) {
-                var uri = leastLoadedServer.get().getKey();
-                servers.compute(uri, (k, v) -> v + 1L);
-                primary = uri;
+                var newUrl = format("%s/%s/%s", leastLoadedServer.get().getKey(), Blobs.NAME, shortId);
+
+                if (!newUrl.equals(blobUrl)) {
+                    servers.compute(leastLoadedServer.get().getKey(), (k, v) -> v + 1L);
+                    return newUrl;
+                } else {
+                    try {
+                        leastLoadedServer = servers.entrySet()
+                                .stream()
+                                .sorted((e1, e2) -> Long.compare(e1.getValue(), e2.getValue()))
+                                .skip(1)
+                                .findFirst();
+
+                        if (leastLoadedServer.isPresent()) {
+                            var uri = leastLoadedServer.get().getKey();
+                            servers.compute(uri, (k, v) -> v + 1L);
+                            return format("%s/%s/%s", uri, Blobs.NAME, shortId);
+                        }
+                    } catch (Exception x) {
+                        return "?";
+                    }
+                }
             }
-
-            leastLoadedServer = servers.entrySet()
-                    .stream()
-                    .sorted((e1, e2) -> Long.compare(e1.getValue(), e2.getValue()))
-                    .findFirst();
-
-            if (leastLoadedServer.isPresent()) {
-                var uri = leastLoadedServer.get().getKey();
-                servers.compute(uri, (k, v) -> v + 1L);
-                replica = uri;
-            }
-
-            /*if (primary.equals(replica))
-                return primary;
-            else if (primary.isEmpty() && replica.isEmpty())
-                return "?";
-            else if (primary.isEmpty())
-                return format("%s/%s/%s", replica, Blobs.NAME, shortId);
-            else if (replica.isEmpty())
-                return format("%s/%s/%s", primary, Blobs.NAME, shortId);
-            else*/
-            return format("%s/%s/%s", primary, Blobs.NAME, shortId) + "|" + format("%s/%s/%s", replica, Blobs.NAME, shortId);
 
         } catch (Exception x) {
             x.printStackTrace();
         }
         return "?";
     }
-
-    static record BlobServerCount(String baseURI, Long count) {};
-
-    private long totalShortsInDatabase() {
-        var hits = DB.sql("SELECT count('*') FROM Short", Long.class);
-        return 1L + (hits.isEmpty() ? 0L : hits.get(0));
-    }
-
-    private String getBlobsUrls(String shortId) {
-        var blobsURLs = Discovery.getInstance().knownUrisOf(Blobs.NAME, 1);
-        StringBuilder blobUrl = new StringBuilder(format("%s/%s/%s", blobsURLs[0], Blobs.NAME, shortId));
-
-        for (int i = 1; i < blobsURLs.length; i++)
-            blobUrl.append("|").append(format("%s/%s/%s", blobsURLs[i], Blobs.NAME, shortId));
-
-        return blobUrl.toString();
-    }
-
-    protected Result<Short> shortFromCache(String shortId) {
-        try {
-            var res = shortsCache.get(shortId);
-            var newBlobUrl = getBlobsUrls(shortId);
-
-            if (res.isOK())
-                if (!res.value().getBlobUrl().equals(newBlobUrl)) {
-                    shortsCache.invalidate(shortId);
-                    var shrt = res.value();
-                    shrt.setBlobUrl(newBlobUrl);
-                    DB.updateOne(shrt);
-                    return ok(shrt);
-                }
-
-            return shortsCache.get(shortId);
-        } catch (ExecutionException e) {
-            e.printStackTrace();
-            return error(INTERNAL_ERROR);
-        }
-    }
-
 
 }
