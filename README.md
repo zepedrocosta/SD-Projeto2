@@ -50,8 +50,30 @@ mvn clean compile assembly:single docker:build
 
 ### Blobs Replication
 
-* 107a - **OK**
-* 107b - **OK**
-* 107c - **OK**
+* 107a - **Sometimes fail**
+* 107b - **Sometimes fail**
+* 107c - **Sometimes fail**
 
 ### Kafka
+
+* 108a - **OK**
+* 108b - **Sometimes fail Download null**
+* 108c - **Sometimes fail**
+
+* 109a - **Fail Upload 403 Timeout after fail**
+* 109b - **OK**
+
+* 110a - **OK**
+* 110b - **OK**
+* 110c - **OK**
+* 110d - **OK**
+* 110e - **OK**
+* 110f - **Fail CreateShort 409 after recovering from fail**
+
+* 111a - **Not implemented**
+* 111b - **Not implemented**
+* 111c - **Not implemented**
+
+* 112a - **OK**
+* 112b - **OK**
+* 112c - **Not implemented**

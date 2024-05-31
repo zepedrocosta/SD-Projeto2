@@ -9,6 +9,7 @@ import tukano.api.java.Shorts;
 import tukano.impl.rest.servers.utils.CustomLoggingFilter;
 import tukano.impl.rest.servers.utils.GenericExceptionMapper;
 import utils.Args;
+import utils.kafka.KafkaUtils;
 
 
 public class RestShortsServer extends AbstractRestServer {
@@ -30,6 +31,7 @@ public class RestShortsServer extends AbstractRestServer {
 	
 	public static void main(String[] args) throws NoSuchAlgorithmException {
 		Args.use(args);
+		KafkaUtils.createTopic("shorts", 1, 1);
 		new RestShortsServer().start();
 	}	
 }

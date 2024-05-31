@@ -2,7 +2,6 @@ package tukano.impl.grpc.servers;
 
 
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -12,7 +11,6 @@ import java.security.cert.CertificateException;
 import java.util.logging.Logger;
 
 import io.grpc.Server;
-import io.grpc.ServerBuilder;
 import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NettyServerBuilder;
 import io.netty.handler.ssl.SslContextBuilder;
@@ -31,7 +29,7 @@ public class AbstractGrpcServer extends AbstractServer {
 	protected Server server;
 
 	protected AbstractGrpcServer(Logger log, String service, int port, AbstractGrpcStub stub) {
-		super(log, service, String.format(SERVER_BASE_URI, IP.hostName(), port, GRPC_CTX));
+		super(log, service, String.format(SERVER_BASE_URI, IP.hostname(), port, GRPC_CTX));
 		try {
 			iniate(port, stub);
 		} catch (KeyStoreException | IOException | CertificateException | NoSuchAlgorithmException |

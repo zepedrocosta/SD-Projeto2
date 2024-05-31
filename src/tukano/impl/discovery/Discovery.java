@@ -18,7 +18,7 @@ import utils.Sleep;
 /**
  * <p>A class interface to perform service discovery based on periodic 
  * announcements over multicast communication.</p>
- * 
+ *
  */
 
 public interface Discovery {
@@ -51,7 +51,7 @@ public interface Discovery {
  * Implementation of the multicast discovery service
  */
 class DiscoveryImpl implements Discovery {
-	
+
 	private static Logger Log = Logger.getLogger(Discovery.class.getName());
 
 	static final int DISCOVERY_CLEAR_SLEEP = 7000;
@@ -68,14 +68,14 @@ class DiscoveryImpl implements Discovery {
 	private Map<String, Set<URI>> uris = new ConcurrentHashMap<>();
 
 	private Map<String[], Long> urisTimestamps = new ConcurrentHashMap<>();
-	
+
 	synchronized static Discovery getInstance() {
 		if (singleton == null) {
 			singleton = new DiscoveryImpl();
 		}
 		return singleton;
 	}
-		
+
 	private DiscoveryImpl() {
 		this.startListener();
 	}
@@ -114,7 +114,7 @@ class DiscoveryImpl implements Discovery {
 			}
 			else
 				Sleep.ms(DISCOVERY_ANNOUNCE_PERIOD);
-				
+
 		}
 	}
 
