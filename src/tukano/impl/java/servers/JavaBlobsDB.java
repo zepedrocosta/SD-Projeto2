@@ -9,12 +9,7 @@ import static tukano.api.java.Result.ErrorCode.FORBIDDEN;
 import static tukano.api.java.Result.ErrorCode.INTERNAL_ERROR;
 import static tukano.api.java.Result.ErrorCode.NOT_FOUND;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
@@ -36,6 +31,8 @@ public class JavaBlobsDB implements ExtendedBlobs {
 
 	private static final int CHUNK_SIZE = 4096;
 
+	private IODropbox dropbox = new IODropbox();
+
 	@Override
 	public Result<Void> upload(String blobId, byte[] bytes) {
 		Log.info(() -> format("upload : blobId = %s, sha256 = %s\n", blobId, Hex.of(Hash.sha256(bytes))));
@@ -44,7 +41,6 @@ public class JavaBlobsDB implements ExtendedBlobs {
 			return error(FORBIDDEN);
 
 		String filePath = toFilePath(blobId);
-		IODropbox dropbox = new IODropbox();
 
 		if (filePath == null)
 			return error(BAD_REQUEST);
@@ -76,9 +72,8 @@ public class JavaBlobsDB implements ExtendedBlobs {
 		if (filePath == null)
 			return error(BAD_REQUEST);
 
-		IODropbox dropbox = new IODropbox();
 		try {
-			if (hasBlob(filePath, dropbox)) {
+			if (hasBlob(filePath)) {
 				byte[] file = IODropbox.read(filePath);	
 				return ok(file);
 			} else
@@ -94,7 +89,6 @@ public class JavaBlobsDB implements ExtendedBlobs {
 		Log.info(() -> format("downloadToSink : blobId = %s\n", blobId));
 
 		var filePath = toFilePath(blobId);
-		IODropbox dropbox = new IODropbox();
 
 		if (filePath == null)
 			return error(BAD_REQUEST);
@@ -127,7 +121,6 @@ public class JavaBlobsDB implements ExtendedBlobs {
 			return error(FORBIDDEN);
 
 		var filePath = toFilePath(blobId);
-		IODropbox dropbox = new IODropbox();
 
 		if (filePath == null)
 			return error(BAD_REQUEST);
@@ -145,20 +138,24 @@ public class JavaBlobsDB implements ExtendedBlobs {
 	}
 
 	@Override
-	public Result<Void> deleteAllBlobs(String userId, String token) {
+	public Result<Void> deleteAllBlobs(String userId, String token){
 		Log.info(() -> format("deleteAllBlobs : userId = %s, token=%s\n", userId, token));
 
 		if (!Token.matches(token))
 			return error(FORBIDDEN);
 
 		try {
-			var path = new File(BLOBS_ROOT_DIR + userId);
-			Files.walk(path.toPath()).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
-			return ok();
-		} catch (IOException e) {
-			e.printStackTrace();
+			List<String> dir = dropbox.listDirectory("/tukano/" + IP.hostName());
+			for (String d : dir){
+				String directory = BLOBS_ROOT_DIR + userId;
+				if(d.equals(directory)){
+					dropbox.delete(directory);
+				}
+			}
+		} catch (Exception e) {
 			return error(INTERNAL_ERROR);
 		}
+		return ok();
 	}
 
 	private boolean validBlobId(String blobId) {
@@ -184,9 +181,7 @@ public class JavaBlobsDB implements ExtendedBlobs {
 		return url.substring(0, lastSlashIndex);
 	}
 
-	private boolean hasBlob(String filePath, IODropbox dropbox) throws Exception {
-		Log.info(blobFolder(filePath));
-		Log.info(filePath);
+	private boolean hasBlob(String filePath) throws Exception {
 		List<String> files = dropbox.listDirectory(blobFolder(filePath));
 		for (String file : files) {
 			String path = blobFolder(filePath) + "/" + file;
