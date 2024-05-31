@@ -320,8 +320,8 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
     public Result<Void> deleteAllShorts(String userId, String password, String token) {
         Log.info(() -> format("deleteAllShorts : userId = %s, password = %s, token = %s\n", userId, password, token));
 
-        /*if( !Token.matches( token ) )
-            return error(FORBIDDEN);*/
+        if( !Token.matches( token ) )
+            return error(FORBIDDEN);
 
         var version = publisher.publish(TOPIC, "deleteAllShorts$" + userId + "$" + password);
         var result = sync.waitForResult(version);
