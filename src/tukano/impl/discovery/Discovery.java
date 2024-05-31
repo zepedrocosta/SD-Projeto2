@@ -18,7 +18,7 @@ import utils.Sleep;
 /**
  * <p>A class interface to perform service discovery based on periodic 
  * announcements over multicast communication.</p>
- * 
+ *
  */
 
 public interface Discovery {
@@ -51,7 +51,7 @@ public interface Discovery {
  * Implementation of the multicast discovery service
  */
 class DiscoveryImpl implements Discovery {
-	
+
 	private static Logger Log = Logger.getLogger(Discovery.class.getName());
 
 	static final int DISCOVERY_CLEAR_SLEEP = 7000;
@@ -66,14 +66,16 @@ class DiscoveryImpl implements Discovery {
 	private static Discovery singleton;
 
 	private Map<String, Set<URI>> uris = new ConcurrentHashMap<>();
-	
+
+	private Map<String[], Long> urisTimestamps = new ConcurrentHashMap<>();
+
 	synchronized static Discovery getInstance() {
 		if (singleton == null) {
 			singleton = new DiscoveryImpl();
 		}
 		return singleton;
 	}
-		
+
 	private DiscoveryImpl() {
 		this.startListener();
 	}
@@ -112,7 +114,7 @@ class DiscoveryImpl implements Discovery {
 			}
 			else
 				Sleep.ms(DISCOVERY_ANNOUNCE_PERIOD);
-				
+
 		}
 	}
 
@@ -134,6 +136,7 @@ class DiscoveryImpl implements Discovery {
 							var serviceName = parts[0];
 							var uri = URI.create(parts[1]);
 							uris.computeIfAbsent(serviceName, (k) -> ConcurrentHashMap.newKeySet()).add( uri );
+							urisTimestamps.put(new String[] {serviceName, uri.toString()}, System.currentTimeMillis());
 						}
 
 					} catch (Exception x) {
@@ -146,8 +149,13 @@ class DiscoveryImpl implements Discovery {
 		}).start();
 
 		new Thread(() -> {
-			while (true) {
-				uris.clear();
+			for(;;) {
+				for (var entry : urisTimestamps.entrySet()) {
+					if (System.currentTimeMillis() - entry.getValue() > DISCOVERY_CLEAR_SLEEP) {
+						uris.get(entry.getKey()[0]).remove(URI.create(entry.getKey()[1]));
+						urisTimestamps.remove(entry.getKey());
+					}
+				}
 				Sleep.ms(DISCOVERY_CLEAR_SLEEP);
 			}
 		}).start();

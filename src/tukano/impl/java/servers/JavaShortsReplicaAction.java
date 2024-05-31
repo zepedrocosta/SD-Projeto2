@@ -43,16 +43,16 @@ public class JavaShortsReplicaAction {
     public Result<String> createShort(Short value) {
         Log.info(() -> format("createShort : userId = %s\n", value.getOwnerId()));
 
-        Result<Short> shrt = DB.insertOne(value);
-
         try {
+            Result<Short> shrt = DB.insertOne(value);
             if (shrt.isOK())
                 return ok(mapper.writeValueAsString(shrt.value()));
+            return error(shrt.error());
         } catch (Exception e) {
             e.printStackTrace();
         }
 
-        return error(shrt.error());
+        return error(INTERNAL_ERROR);
     }
 
     public Result<String> getShort(String shortId) {
@@ -177,7 +177,7 @@ public class JavaShortsReplicaAction {
             var query1 = format("SELECT * FROM Short s WHERE s.ownerId = '%s'", userId);
             hibernate.createNativeQuery(query1, Short.class).list().forEach( s -> {
                 shortsCache.invalidate( s.getShortId() );
-                hibernate.remove(s);
+                DB.deleteOne(s);
             });
 
             //delete follows
@@ -188,7 +188,7 @@ public class JavaShortsReplicaAction {
             var query3 = format("SELECT * FROM Likes l WHERE l.ownerId = '%s' OR l.userId = '%s'", userId, userId);
             hibernate.createNativeQuery(query3, Likes.class).list().forEach( l -> {
                 shortsCache.invalidate( l.getShortId() );
-                hibernate.remove(l);
+                DB.deleteOne(l);
             });
 
         });
@@ -276,6 +276,7 @@ public class JavaShortsReplicaAction {
                         break;
                     }
                 }
+                Log.info("Returned blobURL: " + shrt.getBlobUrl());
                 return ok(shrt);
             }
 

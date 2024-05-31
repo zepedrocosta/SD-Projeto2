@@ -99,7 +99,7 @@ public class JavaShorts implements ExtendedShorts {
 		Log.info(() -> format("createShort : userId = %s, pwd = %s\n", userId, password));
 
 		return errorOrResult( okUser(userId, password), user -> {
-			var shortId = format("%s-%d", userId, counter.incrementAndGet());
+			var shortId = format("%s-%s", userId, counter.incrementAndGet());
 			var shrt = new Short(shortId, userId, getBlobsUrls(shortId));
 
 			return DB.insertOne(shrt);
@@ -313,7 +313,7 @@ public class JavaShorts implements ExtendedShorts {
 	}
 	
 	static record BlobServerCount(String baseURI, Long count) {};
-	
+
 	private long totalShortsInDatabase() {
 		var hits = DB.sql("SELECT count('*') FROM Short", Long.class);
 		return 1L + (hits.isEmpty() ? 0L : hits.get(0));

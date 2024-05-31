@@ -1,4 +1,4 @@
-package tukano.impl.java.servers.data;
+package tukano.impl.java.servers;
 
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;

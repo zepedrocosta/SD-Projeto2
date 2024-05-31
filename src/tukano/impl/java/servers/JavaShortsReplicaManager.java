@@ -10,7 +10,6 @@ import tukano.api.Short;
 import tukano.api.java.Blobs;
 import tukano.api.java.Result;
 import tukano.impl.api.java.ExtendedShorts;
-import tukano.impl.java.servers.data.JavaShortsReplicaPre;
 import utils.DB;
 import utils.Token;
 import utils.kafka.KafkaPublisher;
@@ -21,6 +20,7 @@ import utils.kafka.SyncPoint;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -38,12 +38,12 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
     private static final String TOPIC = "shorts";
 
     private static Logger Log = Logger.getLogger(JavaShortsReplicaManager.class.getName());
+    AtomicLong counter = new AtomicLong( totalShortsInDatabase() );
     private final KafkaPublisher publisher;
     private final KafkaSubscriber receiver;
     private final JavaShortsReplicaAction implAction;
     private final JavaShortsReplicaPre implPre;
     private final ObjectMapper mapper;
-    AtomicLong counter = new AtomicLong(totalShortsInDatabase());
     final SyncPoint<String> sync;
 
     public JavaShortsReplicaManager() {
@@ -320,8 +320,8 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
     public Result<Void> deleteAllShorts(String userId, String password, String token) {
         Log.info(() -> format("deleteAllShorts : userId = %s, password = %s, token = %s\n", userId, password, token));
 
-        if( !Token.matches( token ) )
-            return error(FORBIDDEN);
+        /*if( !Token.matches( token ) )
+            return error(FORBIDDEN);*/
 
         var version = publisher.publish(TOPIC, "deleteAllShorts$" + userId + "$" + password);
         var result = sync.waitForResult(version);
@@ -357,11 +357,6 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
                 }
             });
 
-    private long totalShortsInDatabase() {
-        var hits = DB.sql("SELECT count('*') FROM Short", Long.class);
-        return 1L + (hits.isEmpty() ? 0L : hits.get(0));
-    }
-
     private String getLeastLoadedBlobServerURI(String shortId) {
         try {
             var servers = blobCountCache.get(BLOB_COUNT);
@@ -396,6 +391,11 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
             x.printStackTrace();
         }
         return "?";
+    }
+
+    private long totalShortsInDatabase() {
+        var hits = DB.sql("SELECT count('*') FROM Short", Long.class);
+        return 1L + (hits.isEmpty() ? 0L : hits.get(0));
     }
 
 }
