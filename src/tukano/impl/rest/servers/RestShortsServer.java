@@ -6,9 +6,11 @@ import java.util.logging.Logger;
 import org.glassfish.jersey.server.ResourceConfig;
 
 import tukano.api.java.Shorts;
+import tukano.impl.java.servers.JavaShortsReplicaManager;
 import tukano.impl.rest.servers.utils.CustomLoggingFilter;
 import tukano.impl.rest.servers.utils.GenericExceptionMapper;
 import utils.Args;
+import utils.VersionHeaderHandler;
 import utils.kafka.KafkaUtils;
 
 
@@ -24,7 +26,8 @@ public class RestShortsServer extends AbstractRestServer {
 	
 	@Override
 	void registerResources(ResourceConfig config) {
-		config.register( RestShortsResource.class ); 
+		config.register( RestShortsResource.class );
+		config.register( new VersionHeaderHandler());
 		config.register(new GenericExceptionMapper());
 		config.register(new CustomLoggingFilter());
 	}

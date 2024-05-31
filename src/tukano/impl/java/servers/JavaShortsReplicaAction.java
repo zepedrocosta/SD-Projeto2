@@ -266,6 +266,7 @@ public class JavaShortsReplicaAction {
                 for (var url : blobURLs) {
                     Log.info("url: " + url);
                     if (!formattedURLs.contains(url)) {
+                        blobCountCache.invalidate(url);
                         blobURLs.remove(url);
                         var newUrl = getOtherUrl(url, shortId);
                         if (newUrl.equals("?"))

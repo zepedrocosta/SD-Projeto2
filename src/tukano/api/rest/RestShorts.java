@@ -15,6 +15,8 @@ import tukano.api.Short;
 
 @Path(RestShorts.PATH)
 public interface RestShorts {
+
+	String HEADER_VERSION = "X-SHORTS-version";
 	String PATH = "/shorts";
 	
 	String USER_ID = "userId";

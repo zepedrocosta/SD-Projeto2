@@ -247,6 +247,7 @@ public class JavaShorts implements ExtendedShorts {
 					Log.info("url: " + url);
 					if (!formattedURLs.contains(url)) {
 						blobURLs.remove(url);
+						blobCountCache.invalidate(url);
 						var newUrl = getOtherUrl(url, shortId);
 						if (newUrl.equals("?"))
 							shrt.setBlobUrl(blobURLs.get(0));
