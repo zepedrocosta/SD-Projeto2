@@ -57,10 +57,10 @@ mvn clean compile assembly:single docker:build
 ### Kafka
 
 * 108a - **OK**
-* 108b - **Sometimes fail Download null**
+* 108b - **Sometimes fail**
 * 108c - **Sometimes fail**
 
-* 109a - **Fail Upload 403 Timeout after fail**
+* 109a - **FAIL - Upload 403**
 * 109b - **OK**
 
 * 110a - **OK**
@@ -68,7 +68,7 @@ mvn clean compile assembly:single docker:build
 * 110c - **OK**
 * 110d - **OK**
 * 110e - **OK**
-* 110f - **Fail CreateShort 409 after recovering from fail**
+* 110f - **FAIL - CreateShort 409**
 
 * 111a - **Not implemented**
 * 111b - **Not implemented**
@@ -76,4 +76,4 @@ mvn clean compile assembly:single docker:build
 
 * 112a - **OK**
 * 112b - **OK**
-* 112c - **Not implemented**
+* 112c - **FAIL**

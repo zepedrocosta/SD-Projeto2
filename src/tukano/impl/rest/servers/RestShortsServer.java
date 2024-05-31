@@ -34,7 +34,6 @@ public class RestShortsServer extends AbstractRestServer {
 	
 	public static void main(String[] args) throws NoSuchAlgorithmException {
 		Args.use(args);
-		KafkaUtils.createTopic("shorts", 1, 1);
 		new RestShortsServer().start();
 	}	
 }
