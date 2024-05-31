@@ -19,7 +19,7 @@ public class IODropbox {
 
     private static final String apiKey = "e1cnnhudp3nwwu5";
     private static final String apiSecret = "mji6dkyofw78cgm";
-    private static final String accessTokenStr = "sl.B2DxP1aXAXRnrfdfJE1qZXGIq0wmWDnjjBBNnJdJskUR3kZzcYcrNkXUgLg1kA2iLJa3o9C3J--pd2doYb2ygQHvBJqW8FuIP_8-v3sUCx0_tbm-8rKg3uTTXXy1RNmfjjJWOVZHhgKk";
+    private static final String accessTokenStr = "sl.B2P0HmImoEylqQtcs79zeW_L8FELSPA7EEt192dNcLWYt8ri6Zu6vCSuSXJOMpz3Gq6YsDCsWPAOcDfnwcG_6rZHY7gZ39iqEsoxGxznFOuxkyEXWwu7qozrm7F97EqrHBCyCOWn8v4n";
 
     private static final String API = "Dropbox-API-Arg";
     private static final String UPLOAD_URL = "https://content.dropboxapi.com/2/files/upload";

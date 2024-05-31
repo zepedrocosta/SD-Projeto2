@@ -145,7 +145,7 @@ public class JavaBlobsDB implements ExtendedBlobs {
 			return error(FORBIDDEN);
 
 		try {
-			List<String> dir = dropbox.listDirectory("/tukano/" + IP.hostName());
+			List<String> dir = dropbox.listDirectory("/tukano/" + IP.hostname());
 			for (String d : dir){
 				String directory = BLOBS_ROOT_DIR + userId;
 				if(d.equals(directory)){
