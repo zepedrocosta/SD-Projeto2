@@ -58,7 +58,7 @@ mvn clean compile assembly:single docker:build
 
 * 108a - **OK**
 * 108b - **Sometimes fail**
-* 108c - **Sometimes fail**
+* 108c - **OK**
 
 * 109a - **FAIL - Upload 403**
 * 109b - **OK**
