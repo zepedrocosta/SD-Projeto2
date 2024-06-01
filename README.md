@@ -57,10 +57,10 @@ mvn clean compile assembly:single docker:build
 ### Kafka
 
 * 108a - **OK**
-* 108b - **Sometimes fail Download null**
+* 108b - **Sometimes fail**
 * 108c - **OK**
 
-* 109a - **Fail Upload 403 Timeout after fail**
+* 109a - **FAIL - Upload 403**
 * 109b - **OK**
 
 * 110a - **OK**
@@ -68,15 +68,11 @@ mvn clean compile assembly:single docker:build
 * 110c - **OK**
 * 110d - **OK**
 * 110e - **OK**
-* 110f - **Fail CreateShort 409 after recovering from fail**
-
-### Security
+* 110f - **FAIL - CreateShort 409**
 
 * 111a - **OK**
 * 111b - **OK**
 * 111c - **Not implemented**
-
-### Concurrent
 
 * 112a - **OK**
 * 112b - **OK**
@@ -85,3 +81,4 @@ mvn clean compile assembly:single docker:build
 ## Notas
 
 Um token é valido durante 10 segundos.
+
