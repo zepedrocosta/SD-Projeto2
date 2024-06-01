@@ -36,6 +36,7 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
     private static final String BLOB_COUNT = "*";
     private static final String KAFKA_BROKERS = "kafka:9092";
     private static final String TOPIC = "shorts";
+    private static final String BREAK = "\\{\\$br}";
 
     private static Logger Log = Logger.getLogger(JavaShortsReplicaManager.class.getName());
     AtomicLong counter = new AtomicLong( totalShortsInDatabase() );
@@ -59,7 +60,7 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
     @Override
     public void onReceive(ConsumerRecord<String, String> r) {
         String msg = r.value();
-        String[] parts = msg.split("\\$");
+        String[] parts = msg.split(BREAK);
         String operation = parts[0];
         Result<String> result = ok("");
         try {
@@ -101,7 +102,7 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
             return error(precondition.error());
 
         try {
-            var version = publisher.publish(TOPIC, "createShort$" + mapper.writeValueAsString(shrt));
+            var version = publisher.publish(TOPIC, "createShort" + BREAK + mapper.writeValueAsString(shrt));
             result = sync.waitForResult(version);
             return ok(mapper.readValue(result, Short.class));
         } catch (JsonProcessingException e) {
@@ -122,7 +123,7 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
         var precondition = implPre.preVerifyShortId(shortId);
 
         if (precondition) {
-            var version = publisher.publish(TOPIC, "getShort$" + shortId);
+            var version = publisher.publish(TOPIC, "getShort" + BREAK + shortId);
             var result = sync.waitForResult(version);
             try {
                 var shrt = mapper.readValue(result, Short.class);
@@ -154,7 +155,7 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
             return error(preconditionUser.error());
 
         try {
-            var version = publisher.publish(TOPIC, "deleteShort$" + mapper.writeValueAsString(shrt));
+            var version = publisher.publish(TOPIC, "deleteShort" + BREAK + mapper.writeValueAsString(shrt));
             var result = sync.waitForResult(version);
             try {
                 return error(mapper.readValue(result, ErrorCode.class));
@@ -176,7 +177,7 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
         if (!preconditionUser.isOK())
             return error(preconditionUser.error());
 
-        var version = publisher.publish(TOPIC, "getShorts$" + userId);
+        var version = publisher.publish(TOPIC, "getShorts" + BREAK + userId);
         var result = sync.waitForResult(version);
         try {
             return ok(mapper.readValue(result, List.class));
@@ -204,7 +205,7 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
         if (!preconditionUser2.isOK())
             return error(preconditionUser2.error());
 
-        var version = publisher.publish(TOPIC, "follow$" + userId1 + "$" + userId2 + "$" + isFollowing);
+        var version = publisher.publish(TOPIC, "follow" + BREAK + userId1 +  BREAK + userId2  + BREAK + isFollowing);
         var result = sync.waitForResult(version);
 
         try {
@@ -224,7 +225,7 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
         if (!preconditionUser.isOK())
             return error(preconditionUser.error());
 
-        var version = publisher.publish(TOPIC, "followers$" + userId + "$" + password);
+        var version = publisher.publish(TOPIC, "followers" + BREAK + userId  + BREAK + password);
         var result = sync.waitForResult(version);
         try {
             return ok(mapper.readValue(result, List.class));
@@ -251,7 +252,7 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
         if (!res.isOK())
             return error(res.error());
 
-        var version = publisher.publish(TOPIC, "like$" + shortId + "$" + userId + "$" + isLiked + "$" + res.value().getOwnerId());
+        var version = publisher.publish(TOPIC, "like" + BREAK + shortId  + BREAK + userId  + BREAK + isLiked  + BREAK + res.value().getOwnerId());
         var result = sync.waitForResult(version);
 
         try {
@@ -277,7 +278,7 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
         if (!preconditionUser.isOK())
             return error(preconditionUser.error());
 
-        var version = publisher.publish(TOPIC, "likes$" + shortId);
+        var version = publisher.publish(TOPIC, "likes" + BREAK + shortId);
         var result = sync.waitForResult(version);
         try {
             return ok(mapper.readValue(result, List.class));
@@ -301,7 +302,7 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
         if (!preconditionUser.isOK())
             return error(preconditionUser.error());
 
-        var version = publisher.publish(TOPIC, "getFeed$" + userId);
+        var version = publisher.publish(TOPIC, "getFeed" + BREAK + userId);
         var result = sync.waitForResult(version);
         try {
             return ok(mapper.readValue(result, List.class));
@@ -323,7 +324,7 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
         if( !Token.matches( token ) )
             return error(FORBIDDEN);
 
-        var version = publisher.publish(TOPIC, "deleteAllShorts$" + userId + "$" + password);
+        var version = publisher.publish(TOPIC, "deleteAllShorts" + BREAK + userId  + BREAK + password);
         var result = sync.waitForResult(version);
 
         try {

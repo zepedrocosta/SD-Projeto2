@@ -14,6 +14,7 @@ import static tukano.impl.java.clients.Clients.BlobsClients;
 import static tukano.impl.java.clients.Clients.UsersClients;
 import static utils.DB.getOne;
 
+import java.net.URI;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -90,7 +91,6 @@ public class JavaShorts implements ExtendedShorts {
 					var hits = DB.sql(QUERY, BlobServerCount.class);
 
 					var candidates = hits.stream().collect(Collectors.toMap(BlobServerCount::baseURI, BlobServerCount::count));
-					Log.info(() -> format("blobCountCache : %s\n", candidates));
 
 					for (var uri : BlobsClients.all())
 						candidates.putIfAbsent(uri.toString(), 0L);
@@ -245,6 +245,7 @@ public class JavaShorts implements ExtendedShorts {
 
 			if (res.isOK()) {
 				shrt = res.value();
+				shortsCache.invalidate(shortId);
 				var servers = Discovery.getInstance().knownUrisOf(Blobs.NAME, 1);
 				List<String> formattedURLs = new ArrayList<>();
 
@@ -252,36 +253,38 @@ public class JavaShorts implements ExtendedShorts {
 					formattedURLs.add(format("%s/%s/%s", server.toString(), Blobs.NAME, shortId));
 
 				var blobURLs = new LinkedList<>(Arrays.asList(shrt.getBlobUrl().split("\\|")));
-				Log.info(shortId + ": " + blobURLs);
-				
+				Log.info(shortId + ": " + blobURLs + "\n");
+
 				for (var url : blobURLs) {
-					var newPath = url.split("\\?")[0];
-					if (!formattedURLs.contains(newPath)) {
-						blobURLs.remove(newPath);
-						blobCountCache.invalidate(newPath);
-						var newUrl = getOtherUrl(newPath, shortId);
+					if (!formattedURLs.contains(url.split("\\?")[0])) {
+						// Wasn't able to invalidate only one, so I'm invalidating them all
+						blobCountCache.invalidateAll();
+						blobURLs.remove(url);
+
+						var newUrl = getOtherUrl(blobURLs.get(0), url, shortId);
 						if (newUrl.equals("?"))
 							shrt.setBlobUrl(blobURLs.get(0));
 						else
 							shrt.setBlobUrl(blobURLs.get(0) + "|" + newUrl);
-						
-						String blobUrls = buildBlobsURLs(shrt);
-						shrt.setBlobUrl(blobUrls);
-						DB.updateOne(shrt);
+
 						break;
 					}
 				}
+
+				var tmp = buildBlobsURLs(shrt);
+				shrt.setBlobUrl(tmp);
+				DB.updateOne(shrt);
 				return ok(shrt);
 			}
 
 			return res;
-		} catch (ExecutionException e) {
+		} catch (Exception e) {
 			e.printStackTrace();
 			return error(INTERNAL_ERROR);
 		}
 	}
 
-	private String getOtherUrl(String blobUrl, String shortId) {
+	private String getOtherUrl(String blobUrl, String removedUrl, String shortId) {
 		try {
 			var servers = blobCountCache.get(BLOB_COUNT);
 
@@ -293,7 +296,7 @@ public class JavaShorts implements ExtendedShorts {
 			if (leastLoadedServer.isPresent()) {
 				var newUrl = format("%s/%s/%s", leastLoadedServer.get().getKey(), Blobs.NAME, shortId);
 
-				if (!newUrl.equals(blobUrl)) {
+				if (!newUrl.equals(blobUrl.split("\\?")[0]) && !newUrl.equals(removedUrl.split("\\?")[0])) {
 					servers.compute(leastLoadedServer.get().getKey(), (k, v) -> v + 1L);
 					return newUrl;
 				}
@@ -305,11 +308,30 @@ public class JavaShorts implements ExtendedShorts {
 								.skip(1)
 								.findFirst();
 
+
 						if (leastLoadedServer.isPresent()) {
-							var uri = leastLoadedServer.get().getKey();
-							servers.compute(uri, (k, v) -> v + 1L);
-							return format("%s/%s/%s", uri, Blobs.NAME, shortId);
+							newUrl = format("%s/%s/%s", leastLoadedServer.get().getKey(), Blobs.NAME, shortId);
 						}
+
+
+						if (!newUrl.equals(blobUrl.split("\\?")[0]) && !newUrl.equals(removedUrl.split("\\?")[0])) {
+							servers.compute(leastLoadedServer.get().getKey(), (k, v) -> v + 1L);
+							return newUrl;
+						}
+						else {
+							leastLoadedServer = servers.entrySet()
+									.stream()
+									.sorted((e1, e2) -> Long.compare(e1.getValue(), e2.getValue()))
+									.skip(2)
+									.findFirst();
+
+
+							if (leastLoadedServer.isPresent()) {
+								var uri = leastLoadedServer.get().getKey();
+								return format("%s/%s/%s", uri, Blobs.NAME, shortId);
+							}
+						}
+
 					} catch (Exception x) {
 						return "?";
 					}
@@ -402,17 +424,21 @@ public class JavaShorts implements ExtendedShorts {
 	}
 
 	private String buildBlobsURLs(Short shrt) {
-		String[] servers = shrt.getBlobUrl().split("\\|");
-		System.out.println("servers: " + servers[0] + " " + servers[1]);
-		String[] parts = servers[0].split("\\?");
-		var timeLimit = System.currentTimeMillis() + 10000;
-		var blobURLs = new StringBuilder(format(BLOBS_URL, parts[0],
-				timeLimit, getVerifier(timeLimit, parts[0].toString())));
-		String[] parts2 = servers[1].split("\\?");
-		blobURLs.append(format("|" + BLOBS_URL, parts2[0], timeLimit,
-				getVerifier(timeLimit, parts2[0])));
-		System.out.println("blobURLs: " + blobURLs.toString());
-		return blobURLs.toString();
+		String blobURL = shrt.getBlobUrl();
+		if (blobURL.contains("|")) {
+			String[] servers = shrt.getBlobUrl().split("\\|");
+			String[] parts = servers[0].split("\\?");
+			var timeLimit = System.currentTimeMillis() + 10000;
+			var blobURLs = new StringBuilder(format(BLOBS_URL, parts[0],
+					timeLimit, getVerifier(timeLimit, parts[0].toString())));
+			String[] parts2 = servers[1].split("\\?");
+			blobURLs.append(format("|" + BLOBS_URL, parts2[0], timeLimit,
+					getVerifier(timeLimit, parts2[0])));
+			return blobURLs.toString();
+		} else {
+			var timeLimit = System.currentTimeMillis() + 10000;
+			return format(BLOBS_URL, blobURL, timeLimit, getVerifier(timeLimit, blobURL));
+		}
 	}
 
     private static String getVerifier(long timelimit, String blobUrl) {
