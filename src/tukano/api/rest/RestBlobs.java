@@ -19,11 +19,11 @@ public interface RestBlobs {
  	@POST
  	@Path("/{" + BLOB_ID +"}")
  	@Consumes(MediaType.APPLICATION_OCTET_STREAM)
-	void upload(@PathParam(BLOB_ID) String blobId, byte[] bytes, @QueryParam("timestamp") String timestamp, @QueryParam("signature") String signature);
+	void upload(@PathParam(BLOB_ID) String blobId, byte[] bytes, @QueryParam("timestamp") String timestamp, @QueryParam("token") String token);
 
 
  	@GET
  	@Path("/{" + BLOB_ID +"}") 	
  	@Produces(MediaType.APPLICATION_OCTET_STREAM)
- 	byte[] download(@PathParam(BLOB_ID) String blobId, @QueryParam("timestamp") String timestamp, @QueryParam("signature") String signature);
+ 	byte[] download(@PathParam(BLOB_ID) String blobId, @QueryParam("timestamp") String timestamp, @QueryParam("token") String token);
 }

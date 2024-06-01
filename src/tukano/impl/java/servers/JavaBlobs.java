@@ -42,16 +42,10 @@ public class JavaBlobs implements ExtendedBlobs {
 	public Result<Void> upload(String blobId, byte[] bytes, String timestamp, String token) {
 		Log.info(() -> format("upload : blobId = %s, sha256 = %s\n", blobId, Hex.of(Hash.sha256(bytes))));
 
-		if (blobId.contains("$")) {
-            timestamp = blobId.substring(blobId.indexOf("timestamp=") + 10, blobId.indexOf("&&"));
-            token = blobId.substring(blobId.indexOf("token=") + 6);
-        }
+		Log.info(timestamp + " " + token + "                   ");
 
         if (!validToken(Long.parseLong(timestamp), token))
             return error(FORBIDDEN);
-
-		// if (!validBlobId(blobId))
-		// 	return error(FORBIDDEN);
 
 		var file = toFilePath(blobId);
 		if (file == null)
@@ -72,6 +66,9 @@ public class JavaBlobs implements ExtendedBlobs {
 	public Result<byte[]> download(String blobId, String timestamp, String token) {
 		Log.info(() -> format("download : blobId = %s\n", blobId));
 
+		Log.info(timestamp + " " + token + "                   ");
+		 
+		token = token.substring(0, token.indexOf("?"));
 		if (!validToken(Long.parseLong(timestamp), token))
 			return error(FORBIDDEN);
 

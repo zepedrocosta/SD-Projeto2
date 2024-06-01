@@ -47,7 +47,7 @@ public class JavaShorts implements ExtendedShorts {
 	private static final long USER_CACHE_EXPIRATION = 3000;
 	private static final long SHORTS_CACHE_EXPIRATION = 3000;
 	private static final long BLOBS_USAGE_CACHE_EXPIRATION = 10000;
-	private static final String BLOBS_URL = "%s/%s/%s$timestamp=%s&&token=%s";
+	private static final String BLOBS_URL = "%s?timestamp=%s&token=%s";
 	private static final String TOKEN = "123456";
 
 
@@ -254,10 +254,18 @@ public class JavaShorts implements ExtendedShorts {
 					formattedURLs.add(format("%s/%s/%s", server.toString(), Blobs.NAME, shortId));
 
 				var blobURLs = new LinkedList<>(Arrays.asList(shrt.getBlobUrl().split("\\|")));
-				Log.info("blobURL: " + shrt.getBlobUrl());
+				Log.info("blobURLhahaahah: " + shrt.getBlobUrl());
 				Log.info(shortId + ": " + blobURLs);
 				
-				for (var url : blobURLs) {
+				List<String> urls = new ArrayList<>();
+
+				for (String url : blobURLs) {
+					String result = url.split("\\?")[0];
+					urls.add(result);
+				}
+
+				for (var url : urls) {
+					url = url.split("\\?")[0];
 					Log.info("url: " + url);
 					if (!formattedURLs.contains(url)) {
 						blobURLs.remove(url);
@@ -268,8 +276,8 @@ public class JavaShorts implements ExtendedShorts {
 						else
 							shrt.setBlobUrl(blobURLs.get(0) + "|" + newUrl);
 						
-						String urls = buildBlobsURLs(shrt);
-						shrt.setBlobUrl(urls);
+						String blobUrls = buildBlobsURLs(shrt);
+						shrt.setBlobUrl(blobUrls);
 						DB.updateOne(shrt);
 						break;
 					}
@@ -405,13 +413,13 @@ public class JavaShorts implements ExtendedShorts {
 	}
 
 	private String buildBlobsURLs(Short shrt) {
-		var servers = shrt.getBlobUrl().split("\\|");
-
+		String[] servers = shrt.getBlobUrl().split("\\|");
+		System.out.println("servers: " + servers[0]);
 		var timeLimit = System.currentTimeMillis() + 10000;
-		var blobURLs = new StringBuilder(format(BLOBS_URL, servers[0], Blobs.NAME, shrt.getShortId(),
+		var blobURLs = new StringBuilder(format(BLOBS_URL, servers[0],
 				timeLimit, getToken(timeLimit, servers[0].toString())));
-		if (!servers[0].equals(servers[1])) {
-			blobURLs.append(format("|" + BLOBS_URL, servers[1], Blobs.NAME, shrt.getShortId(), timeLimit,
+		if (servers.length > 1) {
+			blobURLs.append(format("|" + BLOBS_URL, servers[1], timeLimit,
 					getToken(timeLimit, servers[1])));
 		}
 		return blobURLs.toString();

@@ -20,8 +20,8 @@ public class RestBlobsDBResource extends RestResource implements RestExtendedBlo
 	}
 
 	@Override
-	public byte[] download(String blobId, String token, String timestamp) {
-		return super.resultOrThrow( impl.download( blobId , token, timestamp ));
+	public byte[] download(String blobId, String timestamp, String token) {
+		return super.resultOrThrow( impl.download( blobId , timestamp, token ));
 	}
 
 	@Override
