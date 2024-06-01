@@ -90,6 +90,7 @@ public class JavaShorts implements ExtendedShorts {
 					var hits = DB.sql(QUERY, BlobServerCount.class);
 
 					var candidates = hits.stream().collect(Collectors.toMap(BlobServerCount::baseURI, BlobServerCount::count));
+					Log.info(() -> format("blobCountCache : %s\n", candidates));
 
 					for (var uri : BlobsClients.all())
 						candidates.putIfAbsent(uri.toString(), 0L);
@@ -253,20 +254,12 @@ public class JavaShorts implements ExtendedShorts {
 				var blobURLs = new LinkedList<>(Arrays.asList(shrt.getBlobUrl().split("\\|")));
 				Log.info(shortId + ": " + blobURLs);
 				
-				List<String> urls = new ArrayList<>();
-
-				for (String url : blobURLs) {
-					String result = url.split("\\?")[0];
-					urls.add(result);
-				}
-
-				for (var url : urls) {
-					url = url.split("\\?")[0];
-					Log.info("url: " + url);
-					if (!formattedURLs.contains(url)) {
-						blobURLs.remove(url);
-						blobCountCache.invalidate(url);
-						var newUrl = getOtherUrl(url, shortId);
+				for (var url : blobURLs) {
+					var newPath = url.split("\\?")[0];
+					if (!formattedURLs.contains(newPath)) {
+						blobURLs.remove(newPath);
+						blobCountCache.invalidate(newPath);
+						var newUrl = getOtherUrl(newPath, shortId);
 						if (newUrl.equals("?"))
 							shrt.setBlobUrl(blobURLs.get(0));
 						else
@@ -410,14 +403,15 @@ public class JavaShorts implements ExtendedShorts {
 
 	private String buildBlobsURLs(Short shrt) {
 		String[] servers = shrt.getBlobUrl().split("\\|");
-		System.out.println("servers: " + servers[0]);
+		System.out.println("servers: " + servers[0] + " " + servers[1]);
+		String[] parts = servers[0].split("\\?");
 		var timeLimit = System.currentTimeMillis() + 10000;
-		var blobURLs = new StringBuilder(format(BLOBS_URL, servers[0],
-				timeLimit, getVerifier(timeLimit, servers[0].toString())));
-		if (servers.length > 1) {
-			blobURLs.append(format("|" + BLOBS_URL, servers[1], timeLimit,
-					getVerifier(timeLimit, servers[1])));
-		}
+		var blobURLs = new StringBuilder(format(BLOBS_URL, parts[0],
+				timeLimit, getVerifier(timeLimit, parts[0].toString())));
+		String[] parts2 = servers[1].split("\\?");
+		blobURLs.append(format("|" + BLOBS_URL, parts2[0], timeLimit,
+				getVerifier(timeLimit, parts2[0])));
+		System.out.println("blobURLs: " + blobURLs.toString());
 		return blobURLs.toString();
 	}
 
