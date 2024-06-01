@@ -36,7 +36,7 @@ public class JavaShortsReplicaManager implements ExtendedShorts, RecordProcessor
     private static final String BLOB_COUNT = "*";
     private static final String KAFKA_BROKERS = "kafka:9092";
     private static final String TOPIC = "shorts";
-    private static final String BREAK = "\\{\\$br}";
+    private static final String BREAK = "<break>";
 
     private static Logger Log = Logger.getLogger(JavaShortsReplicaManager.class.getName());
     AtomicLong counter = new AtomicLong( totalShortsInDatabase() );

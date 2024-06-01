@@ -87,7 +87,7 @@ public class JavaShortsReplicaAction {
             var query = format("SELECT * FROM Likes l WHERE l.shortId = '%s'", shortId);
             hibernate.createNativeQuery(query, Likes.class).list().forEach(hibernate::remove);
 
-            BlobsClients.get().delete(shrt.getBlobUrl(), Token.get());
+            //BlobsClients.get().delete(shrt.getBlobUrl(), Token.get()); NOT WORKING
 
         });
     }
@@ -258,6 +258,7 @@ public class JavaShortsReplicaAction {
 
             if (res.isOK()) {
                 shrt = res.value();
+                shortsCache.invalidate(shortId);
                 var servers = Discovery.getInstance().knownUrisOf(Blobs.NAME, 1);
                 List<String> formattedURLs = new ArrayList<>();
 
@@ -265,37 +266,38 @@ public class JavaShortsReplicaAction {
                     formattedURLs.add(format("%s/%s/%s", server.toString(), Blobs.NAME, shortId));
 
                 var blobURLs = new LinkedList<>(Arrays.asList(shrt.getBlobUrl().split("\\|")));
-                Log.info("blobURL: " + shrt.getBlobUrl());
-                Log.info(shortId + ": " + blobURLs);
+                Log.info(shortId + ": " + blobURLs + "\n");
 
                 for (var url : blobURLs) {
-                    var newPath = url.split("\\?")[0];
-                    if (!formattedURLs.contains(newPath)) {
-                        blobCountCache.invalidate(newPath);
-                        blobURLs.remove(newPath);
-                        var newUrl = getOtherUrl(newPath, shortId);
+                    if (!formattedURLs.contains(url.split("\\?")[0])) {
+                        // Wasn't able to invalidate only one, so I'm invalidating them all
+                        blobCountCache.invalidateAll();
+                        blobURLs.remove(url);
+
+                        var newUrl = getOtherUrl(blobURLs.get(0), url, shortId);
                         if (newUrl.equals("?"))
                             shrt.setBlobUrl(blobURLs.get(0));
                         else
                             shrt.setBlobUrl(blobURLs.get(0) + "|" + newUrl);
-                        String blobUrls = buildBlobsURLs(shrt);
-                        shrt.setBlobUrl(blobUrls);
-                        DB.updateOne(shrt);
+
                         break;
                     }
                 }
-                Log.info("Returned blobURL: " + shrt.getBlobUrl());
+
+                var tmp = buildBlobsURLs(shrt);
+                shrt.setBlobUrl(tmp);
+                DB.updateOne(shrt);
                 return ok(shrt);
             }
 
             return res;
-        } catch (ExecutionException e) {
+        } catch (Exception e) {
             e.printStackTrace();
             return error(INTERNAL_ERROR);
         }
     }
 
-    private String getOtherUrl(String blobUrl, String shortId) {
+    private String getOtherUrl(String blobUrl, String removedUrl, String shortId) {
         try {
             var servers = blobCountCache.get(BLOB_COUNT);
 
@@ -307,10 +309,11 @@ public class JavaShortsReplicaAction {
             if (leastLoadedServer.isPresent()) {
                 var newUrl = format("%s/%s/%s", leastLoadedServer.get().getKey(), Blobs.NAME, shortId);
 
-                if (!newUrl.equals(blobUrl)) {
+                if (!newUrl.equals(blobUrl.split("\\?")[0]) && !newUrl.equals(removedUrl.split("\\?")[0])) {
                     servers.compute(leastLoadedServer.get().getKey(), (k, v) -> v + 1L);
                     return newUrl;
-                } else {
+                }
+                else {
                     try {
                         leastLoadedServer = servers.entrySet()
                                 .stream()
@@ -318,11 +321,30 @@ public class JavaShortsReplicaAction {
                                 .skip(1)
                                 .findFirst();
 
+
                         if (leastLoadedServer.isPresent()) {
-                            var uri = leastLoadedServer.get().getKey();
-                            servers.compute(uri, (k, v) -> v + 1L);
-                            return format("%s/%s/%s", uri, Blobs.NAME, shortId);
+                            newUrl = format("%s/%s/%s", leastLoadedServer.get().getKey(), Blobs.NAME, shortId);
                         }
+
+
+                        if (!newUrl.equals(blobUrl.split("\\?")[0]) && !newUrl.equals(removedUrl.split("\\?")[0])) {
+                            servers.compute(leastLoadedServer.get().getKey(), (k, v) -> v + 1L);
+                            return newUrl;
+                        }
+                        else {
+                            leastLoadedServer = servers.entrySet()
+                                    .stream()
+                                    .sorted((e1, e2) -> Long.compare(e1.getValue(), e2.getValue()))
+                                    .skip(2)
+                                    .findFirst();
+
+
+                            if (leastLoadedServer.isPresent()) {
+                                var uri = leastLoadedServer.get().getKey();
+                                return format("%s/%s/%s", uri, Blobs.NAME, shortId);
+                            }
+                        }
+
                     } catch (Exception x) {
                         return "?";
                     }
