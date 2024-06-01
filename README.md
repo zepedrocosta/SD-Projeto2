@@ -81,3 +81,7 @@ mvn clean compile assembly:single docker:build
 * 112a - **OK**
 * 112b - **OK**
 * 112c - **Not implemented**
+
+## Notas
+
+Um token é valido durante 10 segundos.

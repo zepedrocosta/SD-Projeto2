@@ -19,6 +19,8 @@ import java.util.Comparator;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 
+import org.checkerframework.checker.units.qual.s;
+
 import tukano.api.java.Result;
 import tukano.impl.api.java.ExtendedBlobs;
 import tukano.impl.java.clients.Clients;
@@ -144,10 +146,6 @@ public class JavaBlobs implements ExtendedBlobs {
 			return error(INTERNAL_ERROR);
 		}
 	}
-	
-	private boolean validBlobId(String blobId) {
-		return Clients.ShortsClients.get().getShort(blobId).isOK();
-	}
 
 	private File toFilePath(String blobId) {
 		var parts = blobId.split("-");
@@ -161,6 +159,12 @@ public class JavaBlobs implements ExtendedBlobs {
 	}
 
 	private boolean validToken(long timestamp, String secret) {
+		long now = System.currentTimeMillis();
+		if (timestamp < now){
+			System.out.println(timestamp + " " + now + " " + (timestamp - now));	
+			return false;
+		}
+		
         return Hash.md5(IP.hostname(), String.valueOf(timestamp), TOKEN).equals(secret);
     }
 }
