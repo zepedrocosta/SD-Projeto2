@@ -357,18 +357,22 @@ public class JavaShortsReplicaAction {
         return "?";
     }
 
-    private String buildBlobsURLs(Short shrt) {
-		String[] servers = shrt.getBlobUrl().split("\\|");
-		System.out.println("servers: " + servers[0] + " " + servers[1]);
-		String[] parts = servers[0].split("\\?");
-		var timeLimit = System.currentTimeMillis() + 10000;
-		var blobURLs = new StringBuilder(format(BLOBS_URL, parts[0],
-				timeLimit, getVerifier(timeLimit, parts[0].toString())));
-		String[] parts2 = servers[1].split("\\?");
-		blobURLs.append(format("|" + BLOBS_URL, parts2[0], timeLimit,
-				getVerifier(timeLimit, parts2[0])));
-		System.out.println("blobURLs: " + blobURLs.toString());
-		return blobURLs.toString();
+	private String buildBlobsURLs(Short shrt) {
+		String blobURL = shrt.getBlobUrl();
+		if (blobURL.contains("|")) {
+			String[] servers = shrt.getBlobUrl().split("\\|");
+			String[] parts = servers[0].split("\\?");
+			var timeLimit = System.currentTimeMillis() + 10000;
+			var blobURLs = new StringBuilder(format(BLOBS_URL, parts[0],
+					timeLimit, getVerifier(timeLimit, parts[0].toString())));
+			String[] parts2 = servers[1].split("\\?");
+			blobURLs.append(format("|" + BLOBS_URL, parts2[0], timeLimit,
+					getVerifier(timeLimit, parts2[0])));
+			return blobURLs.toString();
+		} else {
+			var timeLimit = System.currentTimeMillis() + 10000;
+			return format(BLOBS_URL, blobURL, timeLimit, getVerifier(timeLimit, blobURL));
+		}
 	}
 
     private static String getVerifier(long timelimit, String blobUrl) {
