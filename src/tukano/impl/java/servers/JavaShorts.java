@@ -256,7 +256,7 @@ public class JavaShorts implements ExtendedShorts {
 				var blobURLs = new LinkedList<>(Arrays.asList(shrt.getBlobUrl().split("\\|")));
 				Log.info("blobURL: " + shrt.getBlobUrl());
 				Log.info(shortId + ": " + blobURLs);
-
+				
 				for (var url : blobURLs) {
 					Log.info("url: " + url);
 					if (!formattedURLs.contains(url)) {
@@ -267,6 +267,9 @@ public class JavaShorts implements ExtendedShorts {
 							shrt.setBlobUrl(blobURLs.get(0));
 						else
 							shrt.setBlobUrl(blobURLs.get(0) + "|" + newUrl);
+						
+						String urls = buildBlobsURLs(shrt);
+						shrt.setBlobUrl(urls);
 						DB.updateOne(shrt);
 						break;
 					}
@@ -403,7 +406,7 @@ public class JavaShorts implements ExtendedShorts {
 
 	private String buildBlobsURLs(Short shrt) {
 		var servers = shrt.getBlobUrl().split("\\|");
-		
+
 		var timeLimit = System.currentTimeMillis() + 10000;
 		var blobURLs = new StringBuilder(format(BLOBS_URL, servers[0], Blobs.NAME, shrt.getShortId(),
 				timeLimit, getToken(timeLimit, servers[0].toString())));
