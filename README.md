@@ -70,10 +70,15 @@ mvn clean compile assembly:single docker:build
 * 110e - **OK**
 * 110f - **FAIL - CreateShort 409**
 
-* 111a - **Not implemented**
-* 111b - **Not implemented**
+* 111a - **OK**
+* 111b - **OK**
 * 111c - **Not implemented**
 
 * 112a - **OK**
 * 112b - **OK**
-* 112c - **FAIL**
+* 112c - **Not implemented**
+
+## Notas
+
+Um token é valido durante 10 segundos.
+

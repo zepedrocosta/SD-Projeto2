@@ -13,6 +13,7 @@ import tukano.impl.discovery.Discovery;
 import tukano.impl.java.servers.data.Following;
 import tukano.impl.java.servers.data.Likes;
 import utils.DB;
+import utils.Hash;
 import utils.Token;
 
 import java.time.Duration;
@@ -33,6 +34,8 @@ public class JavaShortsReplicaAction {
     private static final long USER_CACHE_EXPIRATION = 3000;
     private static final long SHORTS_CACHE_EXPIRATION = 3000;
     private static final long BLOBS_USAGE_CACHE_EXPIRATION = 10000;
+    private static final String BLOBS_URL = "%s?timestamp=%s&verifier=%s";
+    private static final String TOKEN = "123456";
     private static final String BLOB_COUNT = "*";
 
 
@@ -44,6 +47,8 @@ public class JavaShortsReplicaAction {
         Log.info(() -> format("createShort : userId = %s\n", value.getOwnerId()));
 
         try {
+            var blobURLs = buildBlobsURLs(value);
+            value.setBlobUrl(blobURLs);
             Result<Short> shrt = DB.insertOne(value);
             if (shrt.isOK())
                 return ok(mapper.writeValueAsString(shrt.value()));
@@ -264,15 +269,17 @@ public class JavaShortsReplicaAction {
                 Log.info(shortId + ": " + blobURLs);
 
                 for (var url : blobURLs) {
-                    Log.info("url: " + url);
-                    if (!formattedURLs.contains(url)) {
-                        blobCountCache.invalidate(url);
-                        blobURLs.remove(url);
-                        var newUrl = getOtherUrl(url, shortId);
+                    var newPath = url.split("\\?")[0];
+                    if (!formattedURLs.contains(newPath)) {
+                        blobCountCache.invalidate(newPath);
+                        blobURLs.remove(newPath);
+                        var newUrl = getOtherUrl(newPath, shortId);
                         if (newUrl.equals("?"))
                             shrt.setBlobUrl(blobURLs.get(0));
                         else
                             shrt.setBlobUrl(blobURLs.get(0) + "|" + newUrl);
+                        String blobUrls = buildBlobsURLs(shrt);
+                        shrt.setBlobUrl(blobUrls);
                         DB.updateOne(shrt);
                         break;
                     }
@@ -328,4 +335,22 @@ public class JavaShortsReplicaAction {
         return "?";
     }
 
+    private String buildBlobsURLs(Short shrt) {
+		String[] servers = shrt.getBlobUrl().split("\\|");
+		System.out.println("servers: " + servers[0] + " " + servers[1]);
+		String[] parts = servers[0].split("\\?");
+		var timeLimit = System.currentTimeMillis() + 10000;
+		var blobURLs = new StringBuilder(format(BLOBS_URL, parts[0],
+				timeLimit, getVerifier(timeLimit, parts[0].toString())));
+		String[] parts2 = servers[1].split("\\?");
+		blobURLs.append(format("|" + BLOBS_URL, parts2[0], timeLimit,
+				getVerifier(timeLimit, parts2[0])));
+		System.out.println("blobURLs: " + blobURLs.toString());
+		return blobURLs.toString();
+	}
+
+    private static String getVerifier(long timelimit, String blobUrl) {
+		String ip = blobUrl.substring(blobUrl.indexOf("://") + 3, blobUrl.lastIndexOf(":"));
+		return Hash.md5(ip, String.valueOf(timelimit), TOKEN);
+	}
 }

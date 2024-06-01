@@ -7,9 +7,6 @@ import io.grpc.stub.StreamObserver;
 import tukano.api.java.Blobs;
 import tukano.impl.grpc.generated_java.BlobsGrpc;
 import tukano.impl.grpc.generated_java.BlobsProtoBuf.*;
-import tukano.impl.grpc.generated_java.BlobsProtoBuf.DownloadResult;
-import tukano.impl.grpc.generated_java.BlobsProtoBuf.UploadArgs;
-import tukano.impl.grpc.generated_java.BlobsProtoBuf.UploadResult;
 import tukano.impl.api.java.ExtendedBlobs;
 import tukano.impl.java.servers.JavaBlobs;
 
@@ -24,7 +21,11 @@ public class GrpcBlobsServerStub extends AbstractGrpcStub implements BlobsGrpc.A
 
 	@Override
 	public void upload(UploadArgs request, StreamObserver<UploadResult> responseObserver) {
-		var res = impl.upload(request.getBlobId(), request.getData().toByteArray());
+		String[] parts = request.getBlobId().split("\\?");
+		String[] secondParts = parts[1].split("&");
+		String timestamp = secondParts[0].replace("timestamp=", "");
+        String verifier = secondParts[1].replace("verifier=", "");
+		var res = impl.upload(parts[0], request.getData().toByteArray(), timestamp , verifier);
 		if (!res.isOK())
 			responseObserver.onError(errorCodeToStatus(res.error()));
 		else {
