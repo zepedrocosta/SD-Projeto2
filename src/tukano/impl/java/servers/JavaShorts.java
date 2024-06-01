@@ -47,7 +47,7 @@ public class JavaShorts implements ExtendedShorts {
 	private static final long USER_CACHE_EXPIRATION = 3000;
 	private static final long SHORTS_CACHE_EXPIRATION = 3000;
 	private static final long BLOBS_USAGE_CACHE_EXPIRATION = 10000;
-	private static final String LIMIT_BLOBS_URL_STR = "%s/%s/%s$timestamp=%s&&token=%s";
+	private static final String BLOBS_URL = "%s/%s/%s$timestamp=%s&&token=%s";
 	private static final String TOKEN = "123456";
 
 
@@ -108,7 +108,7 @@ public class JavaShorts implements ExtendedShorts {
 			var shortId = format("%s-%d", userId, counter.incrementAndGet());
 
 			Short shrt = new Short(shortId, userId, getLeastLoadedBlobServerURI(shortId));
-
+			
 			var blobURLs = buildBlobsURLs(shrt);
             shrt.setBlobUrl(blobURLs);
 
@@ -129,7 +129,6 @@ public class JavaShorts implements ExtendedShorts {
 			return shrt;
 
 		var blobURLs = buildBlobsURLs(shrt.value());
-
 		shrt.value().setBlobUrl(blobURLs);
 
 		return ok(shrt.value());
@@ -403,27 +402,20 @@ public class JavaShorts implements ExtendedShorts {
 	}
 
 	private String buildBlobsURLs(Short shrt) {
-
-        var uris = Discovery.getInstance().knownUrisOf(Blobs.NAME, 1);
-
-        var timeLimit = System.currentTimeMillis() + 10000;
-        var blobURLs = new StringBuilder(format(LIMIT_BLOBS_URL_STR, uris[0], Blobs.NAME, shrt.getShortId(),
-                timeLimit, getAdminToken(timeLimit, uris[0].toString())));
-
-        for (var uri : uris) {
-            if (uri != null && !uri.toString().equals(uris[0].toString())) {
-                Log.info(() -> format("buildBlobsURLs : uri = %s\n", uri));
-                blobURLs.append(format("|" + LIMIT_BLOBS_URL_STR, uri, Blobs.NAME, shrt.getShortId(), timeLimit,
-                        getAdminToken(timeLimit, uri.toString())));
-            }
-        }
-        return blobURLs.toString();
-    }
-
-	    private static String getAdminToken(long timelimit, String blobUrl) {
-			String ip = blobUrl.substring(blobUrl.indexOf("://") + 2, blobUrl.lastIndexOf(":"));
-			return Hash.md5(ip, String.valueOf(timelimit), TOKEN);
+		var servers = shrt.getBlobUrl().split("\\|");
+		
+		var timeLimit = System.currentTimeMillis() + 10000;
+		var blobURLs = new StringBuilder(format(BLOBS_URL, servers[0], Blobs.NAME, shrt.getShortId(),
+				timeLimit, getToken(timeLimit, servers[0].toString())));
+		if (!servers[0].equals(servers[1])) {
+			blobURLs.append(format("|" + BLOBS_URL, servers[1], Blobs.NAME, shrt.getShortId(), timeLimit,
+					getToken(timeLimit, servers[1])));
 		}
+		return blobURLs.toString();
+	}
 
-
+    private static String getToken(long timelimit, String blobUrl) {
+		String ip = blobUrl.substring(blobUrl.indexOf("://") + 3, blobUrl.lastIndexOf(":"));
+		return Hash.md5(ip, String.valueOf(timelimit), TOKEN);
+	}
 }
