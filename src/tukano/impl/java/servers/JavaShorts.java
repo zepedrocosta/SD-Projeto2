@@ -47,7 +47,7 @@ public class JavaShorts implements ExtendedShorts {
 	private static final long USER_CACHE_EXPIRATION = 3000;
 	private static final long SHORTS_CACHE_EXPIRATION = 3000;
 	private static final long BLOBS_USAGE_CACHE_EXPIRATION = 10000;
-	private static final String BLOBS_URL = "%s?timestamp=%s&token=%s";
+	private static final String BLOBS_URL = "%s?timestamp=%s&verifier=%s";
 	private static final String TOKEN = "123456";
 
 
@@ -127,9 +127,6 @@ public class JavaShorts implements ExtendedShorts {
 
 		if (!shrt.isOK())
 			return shrt;
-
-		var blobURLs = buildBlobsURLs(shrt.value());
-		shrt.value().setBlobUrl(blobURLs);
 
 		return ok(shrt.value());
 	}
@@ -254,7 +251,6 @@ public class JavaShorts implements ExtendedShorts {
 					formattedURLs.add(format("%s/%s/%s", server.toString(), Blobs.NAME, shortId));
 
 				var blobURLs = new LinkedList<>(Arrays.asList(shrt.getBlobUrl().split("\\|")));
-				Log.info("blobURLhahaahah: " + shrt.getBlobUrl());
 				Log.info(shortId + ": " + blobURLs);
 				
 				List<String> urls = new ArrayList<>();
@@ -417,15 +413,15 @@ public class JavaShorts implements ExtendedShorts {
 		System.out.println("servers: " + servers[0]);
 		var timeLimit = System.currentTimeMillis() + 10000;
 		var blobURLs = new StringBuilder(format(BLOBS_URL, servers[0],
-				timeLimit, getToken(timeLimit, servers[0].toString())));
+				timeLimit, getVerifier(timeLimit, servers[0].toString())));
 		if (servers.length > 1) {
 			blobURLs.append(format("|" + BLOBS_URL, servers[1], timeLimit,
-					getToken(timeLimit, servers[1])));
+					getVerifier(timeLimit, servers[1])));
 		}
 		return blobURLs.toString();
 	}
 
-    private static String getToken(long timelimit, String blobUrl) {
+    private static String getVerifier(long timelimit, String blobUrl) {
 		String ip = blobUrl.substring(blobUrl.indexOf("://") + 3, blobUrl.lastIndexOf(":"));
 		return Hash.md5(ip, String.valueOf(timelimit), TOKEN);
 	}

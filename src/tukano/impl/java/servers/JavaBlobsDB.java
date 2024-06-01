@@ -37,7 +37,7 @@ public class JavaBlobsDB implements ExtendedBlobs {
 
 	@Override
 	public Result<Void> upload(String blobId, byte[] bytes, String timestamp, String token) {
-		Log.info(() -> format("upload : blobId = %s, sha256 = %s\n", blobId, Hex.of(Hash.sha256(bytes))));
+		// Log.info(() -> format("upload : blobId = %s, sha256 = %s\n", blobId, Hex.of(Hash.sha256(bytes))));
 
 
         if (!validToken(Long.parseLong(timestamp), token))
@@ -69,9 +69,8 @@ public class JavaBlobsDB implements ExtendedBlobs {
 
 	@Override
 	public Result<byte[]> download(String blobId, String timestamp, String token) {
-		Log.info(() -> format("download : blobId = %s\n", blobId));
+		// Log.info(() -> format("download : blobId = %s\n", blobId));
 		
-		token = token.substring(0, token.indexOf("?"));
 		if (!validToken(Long.parseLong(timestamp), token))
 			return error(FORBIDDEN);
 

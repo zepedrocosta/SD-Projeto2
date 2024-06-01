@@ -72,8 +72,8 @@ mvn clean compile assembly:single docker:build
 
 ### Security
 
-* 111a - **Not implemented**
-* 111b - **Not implemented**
+* 111a - **OK**
+* 111b - **OK**
 * 111c - **Not implemented**
 
 ### Concurrent

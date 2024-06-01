@@ -39,12 +39,12 @@ public class JavaBlobs implements ExtendedBlobs {
 	private static final int CHUNK_SIZE = 4096;
 
 	@Override
-	public Result<Void> upload(String blobId, byte[] bytes, String timestamp, String token) {
+	public Result<Void> upload(String blobId, byte[] bytes, String timestamp, String verifier) {
 		Log.info(() -> format("upload : blobId = %s, sha256 = %s\n", blobId, Hex.of(Hash.sha256(bytes))));
 
-		Log.info(timestamp + " " + token + "                   ");
+		Log.info(blobId + " " + timestamp + " " + verifier + "                   ");
 
-        if (!validToken(Long.parseLong(timestamp), token))
+        if (!validToken(Long.parseLong(timestamp), verifier))
             return error(FORBIDDEN);
 
 		var file = toFilePath(blobId);
@@ -63,14 +63,14 @@ public class JavaBlobs implements ExtendedBlobs {
 	}
 
 	@Override
-	public Result<byte[]> download(String blobId, String timestamp, String token) {
+	public Result<byte[]> download(String blobId, String timestamp, String verifier) {
 		Log.info(() -> format("download : blobId = %s\n", blobId));
-
-		Log.info(timestamp + " " + token + "                   ");
-		 
-		token = token.substring(0, token.indexOf("?"));
-		if (!validToken(Long.parseLong(timestamp), token))
+		
+		Log.info(blobId + " " + timestamp + " " + verifier + "                   ");
+		
+		if (!validToken(Long.parseLong(timestamp), verifier)) {
 			return error(FORBIDDEN);
+		}
 
 		var file = toFilePath(blobId);
 		if (file == null)
@@ -84,7 +84,9 @@ public class JavaBlobs implements ExtendedBlobs {
 
 	@Override
 	public Result<Void> downloadToSink(String blobId, Consumer<byte[]> sink) {
-		Log.info(() -> format("downloadToSink : blobId = %s\n", blobId));
+		String[] parts = blobId.split("\\?");
+
+		blobId = parts[0];
 
 		var file = toFilePath(blobId);
 
@@ -159,10 +161,6 @@ public class JavaBlobs implements ExtendedBlobs {
 	}
 
 	private boolean validToken(long timestamp, String secret) {
-
-        if (timestamp < System.currentTimeMillis())
-            return false;
-
         return Hash.md5(IP.hostname(), String.valueOf(timestamp), TOKEN).equals(secret);
     }
 }

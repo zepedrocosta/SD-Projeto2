@@ -15,13 +15,13 @@ public class RestBlobsDBResource extends RestResource implements RestExtendedBlo
 	}
 
 	@Override
-	public void upload(String blobId, byte[] bytes, String timestamp, String token) {
-		super.resultOrThrow( impl.upload(blobId, bytes, timestamp, token));
+	public void upload(String blobId, byte[] bytes, String timestamp, String verifier) {
+		super.resultOrThrow( impl.upload(blobId, bytes, timestamp, verifier));
 	}
 
 	@Override
-	public byte[] download(String blobId, String timestamp, String token) {
-		return super.resultOrThrow( impl.download( blobId , timestamp, token ));
+	public byte[] download(String blobId, String timestamp, String verifier) {
+		return super.resultOrThrow( impl.download( blobId , timestamp, verifier ));
 	}
 
 	@Override

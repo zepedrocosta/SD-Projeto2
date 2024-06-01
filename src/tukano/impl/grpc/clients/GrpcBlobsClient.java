@@ -26,7 +26,7 @@ public class GrpcBlobsClient extends GrpcClient implements ExtendedBlobs {
 	
 	
 	@Override
-	public Result<Void> upload(String blobId, byte[] bytes, String timestamp, String token) {
+	public Result<Void> upload(String blobId, byte[] bytes, String timestamp, String verifier) {
 		return super.toJavaResult(() -> {
 			stub.upload( UploadArgs.newBuilder()
 				.setBlobId( blobId )
@@ -37,7 +37,7 @@ public class GrpcBlobsClient extends GrpcClient implements ExtendedBlobs {
 	}
 
 	@Override
-	public Result<byte[]> download(String blobId, String timestamp, String token) {
+	public Result<byte[]> download(String blobId, String timestamp, String verifier) {
 		return super.toJavaResult(() -> {
 			var res = stub.download( DownloadArgs.newBuilder()
 				.setBlobId(blobId)
