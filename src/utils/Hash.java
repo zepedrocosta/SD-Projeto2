@@ -32,4 +32,8 @@ public class Hash {
 			sha256.update( data == null ? new byte[0] : data );
 			return sha256.digest();
 		}
+
+		public static String md5(String url, String timeLimit, String token) {
+			return Hex.of(md5((url + timeLimit + token).getBytes()));
+		}
 }

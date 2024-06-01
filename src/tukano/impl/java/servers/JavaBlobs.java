@@ -25,22 +25,33 @@ import tukano.impl.java.clients.Clients;
 import utils.Hash;
 import utils.Hex;
 import utils.IO;
+import utils.IP;
 import utils.Token;
 
 public class JavaBlobs implements ExtendedBlobs {
 	
 	private static final String BLOBS_ROOT_DIR = "/tmp/blobs/";
 	
+	private static final String TOKEN = "123456";
+
 	private static Logger Log = Logger.getLogger(JavaBlobs.class.getName());
 
 	private static final int CHUNK_SIZE = 4096;
 
 	@Override
-	public Result<Void> upload(String blobId, byte[] bytes) {
+	public Result<Void> upload(String blobId, byte[] bytes, String timestamp, String token) {
 		Log.info(() -> format("upload : blobId = %s, sha256 = %s\n", blobId, Hex.of(Hash.sha256(bytes))));
 
-		if (!validBlobId(blobId))
-			return error(FORBIDDEN);
+		if (blobId.contains("$")) {
+            timestamp = blobId.substring(blobId.indexOf("timestamp=") + 10, blobId.indexOf("&&"));
+            token = blobId.substring(blobId.indexOf("token=") + 6);
+        }
+
+        if (!validToken(Long.parseLong(timestamp), token))
+            return error(FORBIDDEN);
+
+		// if (!validBlobId(blobId))
+		// 	return error(FORBIDDEN);
 
 		var file = toFilePath(blobId);
 		if (file == null)
@@ -58,8 +69,11 @@ public class JavaBlobs implements ExtendedBlobs {
 	}
 
 	@Override
-	public Result<byte[]> download(String blobId) {
+	public Result<byte[]> download(String blobId, String timestamp, String token) {
 		Log.info(() -> format("download : blobId = %s\n", blobId));
+
+		if (!validToken(Long.parseLong(timestamp), token))
+			return error(FORBIDDEN);
 
 		var file = toFilePath(blobId);
 		if (file == null)
@@ -146,4 +160,12 @@ public class JavaBlobs implements ExtendedBlobs {
 
 		return res;
 	}
+
+	private boolean validToken(long timestamp, String secret) {
+
+        if (timestamp < System.currentTimeMillis())
+            return false;
+
+        return Hash.md5(IP.hostname(), String.valueOf(timestamp), TOKEN).equals(secret);
+    }
 }

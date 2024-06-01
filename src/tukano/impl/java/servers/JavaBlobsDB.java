@@ -31,11 +31,21 @@ public class JavaBlobsDB implements ExtendedBlobs {
 
 	private static final int CHUNK_SIZE = 4096;
 
+	private static final String TOKEN = "123456";
+
 	private IODropbox dropbox = new IODropbox();
 
 	@Override
-	public Result<Void> upload(String blobId, byte[] bytes) {
+	public Result<Void> upload(String blobId, byte[] bytes, String timestamp, String token) {
 		Log.info(() -> format("upload : blobId = %s, sha256 = %s\n", blobId, Hex.of(Hash.sha256(bytes))));
+
+		if (blobId.contains("$")) {
+            timestamp = blobId.substring(blobId.indexOf("timestamp=") + 10, blobId.indexOf("&&"));
+            token = blobId.substring(blobId.indexOf("token=") + 6);
+        }
+
+        if (!validToken(Long.parseLong(timestamp), token))
+            return error(FORBIDDEN);
 
 		if (!validBlobId(blobId))
 			return error(FORBIDDEN);
@@ -65,8 +75,11 @@ public class JavaBlobsDB implements ExtendedBlobs {
 	}
 
 	@Override
-	public Result<byte[]> download(String blobId) {
+	public Result<byte[]> download(String blobId, String timestamp, String token) {
 		Log.info(() -> format("download : blobId = %s\n", blobId));
+
+		if (!validToken(Long.parseLong(timestamp), token))
+			return error(FORBIDDEN);
 
 		String filePath = toFilePath(blobId);
 		if (filePath == null)
@@ -190,4 +203,12 @@ public class JavaBlobsDB implements ExtendedBlobs {
 		}
 		return false;
 	}
+
+	private boolean validToken(long timeLimit, String secret) {
+
+        if (timeLimit < System.currentTimeMillis())
+            return false;
+
+        return Hash.md5(IP.hostname(), String.valueOf(timeLimit), TOKEN).equals(secret);
+    }
 }

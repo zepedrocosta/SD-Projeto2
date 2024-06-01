@@ -34,6 +34,7 @@ import tukano.impl.discovery.Discovery;
 import tukano.impl.java.servers.data.Following;
 import tukano.impl.java.servers.data.Likes;
 import utils.DB;
+import utils.Hash;
 import utils.Token;
 
 public class JavaShorts implements ExtendedShorts {
@@ -46,6 +47,8 @@ public class JavaShorts implements ExtendedShorts {
 	private static final long USER_CACHE_EXPIRATION = 3000;
 	private static final long SHORTS_CACHE_EXPIRATION = 3000;
 	private static final long BLOBS_USAGE_CACHE_EXPIRATION = 10000;
+	private static final String LIMIT_BLOBS_URL_STR = "%s/%s/%s$timestamp=%s&&token=%s";
+	private static final String TOKEN = "123456";
 
 
 	static record Credentials(String userId, String pwd) {
@@ -104,7 +107,10 @@ public class JavaShorts implements ExtendedShorts {
 
 			var shortId = format("%s-%d", userId, counter.incrementAndGet());
 
-			var shrt = new Short(shortId, userId, getLeastLoadedBlobServerURI(shortId));
+			Short shrt = new Short(shortId, userId, getLeastLoadedBlobServerURI(shortId));
+
+			var blobURLs = buildBlobsURLs(shrt);
+            shrt.setBlobUrl(blobURLs);
 
 			return DB.insertOne(shrt);
 		});
@@ -117,7 +123,16 @@ public class JavaShorts implements ExtendedShorts {
 		if (shortId == null)
 			return error(BAD_REQUEST);
 
-		return shortFromCache(shortId);
+		var shrt = shortFromCache(shortId);
+
+		if (!shrt.isOK())
+			return shrt;
+
+		var blobURLs = buildBlobsURLs(shrt.value());
+
+		shrt.value().setBlobUrl(blobURLs);
+
+		return ok(shrt.value());
 	}
 
 
@@ -386,6 +401,29 @@ public class JavaShorts implements ExtendedShorts {
 		var hits = DB.sql("SELECT count('*') FROM Short", Long.class);
 		return 1L + (hits.isEmpty() ? 0L : hits.get(0));
 	}
+
+	private String buildBlobsURLs(Short shrt) {
+
+        var uris = Discovery.getInstance().knownUrisOf(Blobs.NAME, 1);
+
+        var timeLimit = System.currentTimeMillis() + 10000;
+        var blobURLs = new StringBuilder(format(LIMIT_BLOBS_URL_STR, uris[0], Blobs.NAME, shrt.getShortId(),
+                timeLimit, getAdminToken(timeLimit, uris[0].toString())));
+
+        for (var uri : uris) {
+            if (uri != null && !uri.toString().equals(uris[0].toString())) {
+                Log.info(() -> format("buildBlobsURLs : uri = %s\n", uri));
+                blobURLs.append(format("|" + LIMIT_BLOBS_URL_STR, uri, Blobs.NAME, shrt.getShortId(), timeLimit,
+                        getAdminToken(timeLimit, uri.toString())));
+            }
+        }
+        return blobURLs.toString();
+    }
+
+	    private static String getAdminToken(long timelimit, String blobUrl) {
+			String ip = blobUrl.substring(blobUrl.indexOf("://") + 2, blobUrl.lastIndexOf(":"));
+			return Hash.md5(ip, String.valueOf(timelimit), TOKEN);
+		}
 
 
 }

@@ -9,20 +9,27 @@ import tukano.impl.api.rest.RestExtendedBlobs;
 
 public class RestBlobsClient extends RestClient implements ExtendedBlobs {
 
+	public static String TIMESTAMP = "timestamp";
+	public static String TOKEN = "token";
+
 	public RestBlobsClient(String serverURI) {
 		super(serverURI, RestBlobs.PATH);
 	}
 
-	private Result<Void> _upload(String blobId, byte[] bytes) {
+	private Result<Void> _upload(String blobId, byte[] bytes, String timestamp, String token) {
 		return super.toJavaResult(
 				target.path(blobId)
+				.queryParam(TIMESTAMP, timestamp )
+				.queryParam(TOKEN, token )
 				.request()
 				.post( Entity.entity(bytes, MediaType.APPLICATION_OCTET_STREAM)));
 	}
 
-	private Result<byte[]> _download(String blobId) {
+	private Result<byte[]> _download(String blobId, String timestamp, String token) {
 		return super.toJavaResult(
 				target.path(blobId)
+				.queryParam(TIMESTAMP, timestamp )
+				.queryParam(TOKEN, token )
 				.request()
 				.accept(MediaType.APPLICATION_OCTET_STREAM)
 				.get(), byte[].class);
@@ -46,13 +53,13 @@ public class RestBlobsClient extends RestClient implements ExtendedBlobs {
 	}
 	
 	@Override
-	public Result<Void> upload(String blobId, byte[] bytes) {
-		return super.reTry( () -> _upload(blobId, bytes));
+	public Result<Void> upload(String blobId, byte[] bytes, String timestamp, String token) {
+		return super.reTry( () -> _upload(blobId, bytes, timestamp, token));
 	}
 
 	@Override
-	public Result<byte[]> download(String blobId) {
-		return super.reTry( () -> _download(blobId));
+	public Result<byte[]> download(String blobId, String timestamp, String token) {
+		return super.reTry( () -> _download(blobId, timestamp, token));
 	}
 
 	@Override
